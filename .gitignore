@@ -1,0 +1,6 @@
+*.npy
+__pycache__
+.idea
+/src/poli/config.rc
+src/poli.egg-info/
+temp
