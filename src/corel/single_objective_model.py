@@ -34,7 +34,8 @@ class ProteinModel(TrainableProbabilisticModel):
         self.kernel_mean = None
         self.model = None
         self.dataset = None
-        self.noise = 1e-8
+        #self.noise = 1e-8
+        self.noise = tf.Variable(1e-8 * tf.ones(1, dtype=default_float()))
 
     def _predict(self, query_points: TensorType) -> TensorType:
         assert(self._optimized)
@@ -100,6 +101,8 @@ class ProteinModel(TrainableProbabilisticModel):
         # transform query points to one_hot? No, better do that in the distribution. HMMs may prefer that
         # TODO: the step below is a huge bottleneck! It's repeated for all models but pretty expensive!
         self.ps = self.distribution(dataset.query_points)
+        # TODO: try median?
+        self.log_length_scale.assign(tf.reduce_mean(self.ps))
         squared_hellinger_distance = _hellinger_distance(self.ps)
         print("squared Hellinger distance: \n" + str(squared_hellinger_distance.numpy()))
         optimizer = Scipy()
@@ -121,7 +124,7 @@ class ProteinModel(TrainableProbabilisticModel):
         self.log_length_scale.assign(tf.math.log(tf.ones(1, dtype=default_float()) / 237.))
         optimizer.minimize(
             make_closure(),
-            [self.log_length_scale],
+            [self.log_length_scale, self.noise],
             # options=dict(maxiter=reduce_in_tests(1000)),
         )
         ks = _k(squared_hellinger_distance, self.log_length_scale, self.noise)
