@@ -8,7 +8,7 @@ import numpy as np
 import poli.core.registry
 from poli import objective_factory
 from poli.core.problem_setup_information import ProblemSetupInformation
-from trieste.acquisition import ExpectedImprovement
+from trieste.acquisition import ExpectedImprovement, ExpectedHypervolumeImprovement
 from trieste.acquisition.rule import EfficientGlobalOptimization, SearchSpaceType
 from trieste.data import Dataset
 from trieste.space import TaggedProductSearchSpace, Box, DiscreteSearchSpace
@@ -23,7 +23,7 @@ from corel.util.util import get_amino_acid_integer_mapping_from_info
 from corel.weightings.hmm.hmm_factory import HMMFactory
 from corel.weightings.hmm.hmm_weighting import HMMWeighting
 
-DEBUG = True
+DEBUG = False
 LOG_POST_PERFORMANCE_METRICS = False
 TEMPLATE = f"python {__file__} "
 
@@ -65,7 +65,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
             "V",
         ]
         setup_info = ProblemSetupInformation("FOLDX_RFP", 244, False, AMINO_ACIDS)
-        blackbox_ = lambda s: np.random.randn(1, 2)
+        blackbox_ = lambda s, context=None: np.random.randn(1, 2)
         train_x_ = ["ARN", "DCEE"]
         train_obj = np.random.randn(2, 2)
 
@@ -93,7 +93,8 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
     train_x = tf.constant(train_x)
 
     def blackbox(x, context=None):
-        seqs = [str([integer_amino_acid_mapping[x[n, i]] for i in range(x.shape[1]) if x[n,i] != PADDING_SYMBOL_INDEX]) for n in range(x.shape[0])]
+        x_ = x.numpy()
+        seqs = ["".join([integer_amino_acid_mapping[x_[n, i]] for i in range(x.shape[1]) if x[n,i] != PADDING_SYMBOL_INDEX]) for n in range(x.shape[0])]
         return tf.constant(blackbox_(seqs, context))
 
     #initialize_logger(setup_info, method_factory.get_params(), seed=seed, run_id=run_info)
@@ -104,9 +105,9 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
     initial_data = Dataset(query_points=tf.squeeze(tf.constant(train_x)), observations=tf.constant(train_obj))
     bo = BayesianOptimizer(observer, search_space)
     ei_search_space = TaggedProductSearchSpace(L * [Box(lower=AA * [0.], upper=AA * [1.])])
-    # TODO: I just need to prevent EI from predicting on the query points...
-    ei = ExpectedImprovement(search_space=ei_search_space)
-    rule = EfficientGlobalOptimization(optimizer=optimizer_factory(initial_data), builder=ei)
+    #ei = ExpectedImprovement(search_space=ei_search_space)
+    ei = ExpectedHypervolumeImprovement()
+    rule = EfficientGlobalOptimization(optimizer=optimizer_factory(), builder=ei)
     weighting = weighting_factory.create(setup_info)
     model = TrainableModelStack(*[(ProteinModel(weighting, AA=AA), 1) for _ in range(train_obj.shape[1])])
     result = bo.optimize(max_blackbox_evaluations, initial_data, model, acquisition_rule=rule)
@@ -114,6 +115,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
 
 
 if __name__ == '__main__':
+    tf.config.run_functions_eagerly(run_eagerly=True)
     optimizer_factory = make_pareto_frontier_explorer
     run_single_bo_conf("FOLDX_RFP", 5, HMMFactory(), optimizer_factory, seed=0)
     exit()
