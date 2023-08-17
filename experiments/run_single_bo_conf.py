@@ -18,7 +18,7 @@ from trieste.models import TrainableModelStack
 
 from corel.optimization.pareto_frontier_explorer import make_pareto_frontier_explorer
 from corel.optimization.randomized_pareto_frontier_explorer import make_randomized_pareto_frontier_explorer
-from corel.single_objective_model import ProteinModel
+from corel.protein_model import ProteinModel
 from corel.util.constants import PADDING_SYMBOL_INDEX
 from corel.util.util import get_amino_acid_integer_mapping_from_info
 from corel.weightings.hmm.hmm_factory import HMMFactory
