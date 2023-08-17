@@ -12,7 +12,7 @@ This optimization algorithm imitates LamBO. We just explore all single site muta
 
 
 def _get_best_of_single_site_mutations(seq, acquisition_function, trials):
-    AA = acquisition_function._model._models[0].AA  # get from ac
+    AA = acquisition_function._model.AA  # get from ac
     atom = _seq_to_atom(seq, AA)
     val = acquisition_function(atom)
 

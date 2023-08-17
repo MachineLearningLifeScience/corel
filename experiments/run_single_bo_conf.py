@@ -17,13 +17,14 @@ from trieste.objectives.utils import mk_observer
 from trieste.models import TrainableModelStack
 
 from corel.optimization.pareto_frontier_explorer import make_pareto_frontier_explorer
+from corel.optimization.randomized_pareto_frontier_explorer import make_randomized_pareto_frontier_explorer
 from corel.single_objective_model import ProteinModel
 from corel.util.constants import PADDING_SYMBOL_INDEX
 from corel.util.util import get_amino_acid_integer_mapping_from_info
 from corel.weightings.hmm.hmm_factory import HMMFactory
 from corel.weightings.hmm.hmm_weighting import HMMWeighting
 
-DEBUG = False
+DEBUG = True
 LOG_POST_PERFORMANCE_METRICS = False
 TEMPLATE = f"python {__file__} "
 
@@ -104,19 +105,20 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
     search_space = TaggedProductSearchSpace(L * [amino_acid_space])
     initial_data = Dataset(query_points=tf.squeeze(tf.constant(train_x)), observations=tf.constant(train_obj))
     bo = BayesianOptimizer(observer, search_space)
-    ei_search_space = TaggedProductSearchSpace(L * [Box(lower=AA * [0.], upper=AA * [1.])])
+    #ei_search_space = TaggedProductSearchSpace(L * [Box(lower=AA * [0.], upper=AA * [1.])])
     #ei = ExpectedImprovement(search_space=ei_search_space)
     ei = ExpectedHypervolumeImprovement()
     rule = EfficientGlobalOptimization(optimizer=optimizer_factory(), builder=ei)
     weighting = weighting_factory.create(setup_info)
-    model = TrainableModelStack(*[(ProteinModel(weighting, AA=AA), 1) for _ in range(train_obj.shape[1])])
+    #model = TrainableModelStack(*[(ProteinModel(weighting, AA=AA), 1) for _ in range(train_obj.shape[1])])
+    model = ProteinModel(weighting, AA)
     result = bo.optimize(max_blackbox_evaluations, initial_data, model, acquisition_rule=rule)
     #blackbox_.terminate()
 
 
 if __name__ == '__main__':
     tf.config.run_functions_eagerly(run_eagerly=True)
-    optimizer_factory = make_pareto_frontier_explorer
+    optimizer_factory = make_randomized_pareto_frontier_explorer
     run_single_bo_conf("FOLDX_RFP", 5, HMMFactory(), optimizer_factory, seed=0)
     exit()
     parser = argparse.ArgumentParser(description="")

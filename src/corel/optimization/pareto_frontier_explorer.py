@@ -38,8 +38,10 @@ def _get_best_of_single_site_mutations(seq, acquisition_function):
 
 def make_pareto_frontier_explorer(dataset=None, get_best_of_single_site_mutations=_get_best_of_single_site_mutations):
     if dataset is None:
-        observations_handle = lambda ac: tf.concat([ac._model._models[i].dataset.observations for i in range(len(ac._model._models))], axis=-1)
-        inputs_handle = lambda ac: ac._model._models[0].dataset.query_points
+        # observations_handle = lambda ac: tf.concat([ac._model._models[i].dataset.observations for i in range(len(ac._model._models))], axis=-1)
+        # inputs_handle = lambda ac: ac._model._models[0].dataset.query_points
+        observations_handle = lambda ac: ac._model.dataset.observations
+        inputs_handle = lambda ac: ac._model.dataset.query_points
     else:
         # TODO: THIS DOES NOT WORK!
         raise NotImplementedError("this does not work! I need the most recent data!")
