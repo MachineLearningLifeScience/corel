@@ -8,12 +8,13 @@ from gpflow import default_float
 from trieste.acquisition.optimizer import automatic_optimizer_selector, generate_continuous_optimizer
 from trieste.space import SearchSpaceType, TaggedProductSearchSpace, Box
 
-from corel.util.util import get_best_of_k, get_best_of_single_site_mutations
+from corel.optimization.latent_optimizer import get_best_of_k, get_best_of_single_site_mutations
 from corel.weightings.vae.cbas_vae_wrapper import CBASVAEWrapper
 from simplex_optimizer import _make_optimizer as _make_simplex_optimizer
 
 
 def combined_optimizer(search_space: SearchSpaceType, acquisition_function) -> tf.Tensor:
+    raise NotImplementedError("get problem quantities")
     L = 237
     AA = 20
     vae = CBASVAEWrapper(AA=AA, L=L)
