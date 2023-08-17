@@ -102,7 +102,7 @@ class ProteinModel(TrainableProbabilisticModel):
         # TODO: the step below is a huge bottleneck! It's repeated for all models but pretty expensive!
         self.ps = self.distribution(dataset.query_points)
         # TODO: try median?
-        self.log_length_scale.assign(tf.reduce_mean(self.ps))
+        self.log_length_scale.assign(tf.math.log(tf.reduce_mean(self.ps) * tf.ones(1, dtype=default_float())))
         squared_hellinger_distance = _hellinger_distance(self.ps)
         print("squared Hellinger distance: \n" + str(squared_hellinger_distance.numpy()))
         optimizer = Scipy()
@@ -121,7 +121,6 @@ class ProteinModel(TrainableProbabilisticModel):
 
             return opt_criterion
 
-        self.log_length_scale.assign(tf.math.log(tf.ones(1, dtype=default_float()) / 237.))
         optimizer.minimize(
             make_closure(),
             [self.log_length_scale, self.noise],
