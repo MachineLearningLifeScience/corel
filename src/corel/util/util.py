@@ -1,8 +1,8 @@
 __author__ = 'Simon Bartels'
 
 import tensorflow as tf
-from gpflow import default_float
 from poli.core.problem_setup_information import ProblemSetupInformation
+from gpflow import default_float
 
 
 def get_amino_acid_integer_mapping_from_info(setup_info: ProblemSetupInformation):

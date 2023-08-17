@@ -28,6 +28,7 @@ class ProteinModel(TrainableProbabilisticModel):
         self.ps = None
         self.L = None  # Cholesky of the kernel matrix
         self.alpha = None
+        # TODO: proper initialization of lengthscale!
         self.log_length_scale = tf.Variable(tf.ones(1, dtype=default_float()))
         self.amplitude = None
         self.kernel_mean = None
@@ -82,6 +83,7 @@ class ProteinModel(TrainableProbabilisticModel):
         return mean, variance
 
     def sample(self, query_points: TensorType, num_samples: int) -> TensorType:
+        raise NotImplementedError("not implemented")
         temp = self._predict(query_points)
         mean = temp @ self.alpha + self.kernel_mean
         # TODO: noise?
@@ -96,6 +98,7 @@ class ProteinModel(TrainableProbabilisticModel):
         self.dataset = dataset
         self._optimized = True
         # transform query points to one_hot? No, better do that in the distribution. HMMs may prefer that
+        # TODO: the step below is a huge bottleneck! It's repeated for all models but pretty expensive!
         self.ps = self.distribution(dataset.query_points)
         squared_hellinger_distance = _hellinger_distance(self.ps)
         print("squared Hellinger distance: \n" + str(squared_hellinger_distance.numpy()))
