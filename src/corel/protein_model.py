@@ -29,8 +29,7 @@ class ProteinModel(TrainableProbabilisticModel):
         self.kernel_means = None
         self.dataset = None
         #self.noise = 1e-8
-        # TODO: use log-noise?
-        self.noises = None #tf.Variable(1e-8 * tf.ones(1, dtype=default_float()))
+        self.log_noises = None #tf.Variable(1e-8 * tf.ones(1, dtype=default_float()))
 
     def _predict(self, query_points: TensorType) -> [[TensorType]]:
         assert(self._optimized)
@@ -100,7 +99,7 @@ class ProteinModel(TrainableProbabilisticModel):
         num_tasks = dataset.observations.shape[1]
         # TODO: try median?
         self.log_length_scales = [tf.Variable(tf.math.log(tf.reduce_mean(self.ps) * tf.ones(1, dtype=default_float()))) for _ in range(num_tasks)]
-        self.noises = [tf.Variable(1e-8 * tf.ones(1, dtype=default_float())) for _ in range(num_tasks)]
+        self.log_noises = [tf.Variable(tf.math.log(1e-3 * tf.ones(1, dtype=default_float()))) for _ in range(num_tasks)]
         squared_hellinger_distance = _hellinger_distance(self.ps)
         print("squared Hellinger distance: \n" + str(squared_hellinger_distance.numpy()))
         optimizer = Scipy()
@@ -108,7 +107,7 @@ class ProteinModel(TrainableProbabilisticModel):
         for i in range(num_tasks):
             def make_closure():
                 def opt_criterion():
-                    ks = _k(squared_hellinger_distance, self.log_length_scales[i], self.noises[i])
+                    ks = _k(squared_hellinger_distance, self.log_length_scales[i], self.log_noises[i])
                     try:
                         L = tf.linalg.cholesky(ks)
                     except Exception as e:
@@ -121,17 +120,18 @@ class ProteinModel(TrainableProbabilisticModel):
 
             optimizer.minimize(
                 make_closure(),
-                [self.log_length_scales[i], self.noises[i]],
+                [self.log_length_scales[i], self.log_noises[i]],
                 # options=dict(maxiter=reduce_in_tests(1000)),
             )
-        self.Ls = [tf.linalg.cholesky(_k(squared_hellinger_distance, self.log_length_scales[i], self.noises[i])) for i in range(num_tasks)]
+        # TODO: log hyper-parameters
+        self.Ls = [tf.linalg.cholesky(_k(squared_hellinger_distance, self.log_length_scales[i], self.log_noises[i])) for i in range(num_tasks)]
         # L_ = tf.linalg.cholesky(K)
         self.kernel_means = dict()
         self.amplitudes = dict()
         for i in range(num_tasks):
             self.kernel_means[i], self.amplitudes[i] = get_mean_and_amplitude(self.Ls[i], dataset.observations[:, i:i+1])
         #print("covariance matrix:\n" + str(ks.numpy()))
-        #print("length scale: " + str(np.exp(self.log_length_scale.numpy())))
+        print("length scales: " + str([np.exp(self.log_length_scales[i].numpy()) for i in range(num_tasks)]))
         self.alphas = [tf.linalg.triangular_solve(self.Ls[i], dataset.observations[:, i:i+1] - self.kernel_means[i], lower=True) for i in range(num_tasks)]
 
 
@@ -151,11 +151,11 @@ def _hellinger_distance(ps):
     return squared_hellinger_distance
 
 
-def _k(HD, log_lengthscale, noise):
+def _k(HD, log_lengthscale, log_noise):
     #K = (X + tf.transpose(X)) / 2
     #K = tf.linalg.set_diag(K, tf.zeros(K.shape[0], dtype=K.dtype))
     K = tf.math.exp(-tf.sqrt(HD) / tf.exp(log_lengthscale))
-    K = K + noise * tf.eye(K.shape[0], dtype=K.dtype)
+    K = K + tf.math.exp(log_noise) * tf.eye(K.shape[0], dtype=K.dtype)
     return K
 
 

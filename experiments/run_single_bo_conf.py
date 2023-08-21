@@ -1,11 +1,6 @@
-import argparse
-import logging
-import os.path
 import random
-import warnings
 import tensorflow as tf
 import numpy as np
-import poli.core.registry
 from poli import objective_factory
 from poli.core.problem_setup_information import ProblemSetupInformation
 from trieste.acquisition import ExpectedImprovement, ExpectedHypervolumeImprovement
@@ -14,7 +9,6 @@ from trieste.data import Dataset
 from trieste.space import TaggedProductSearchSpace, Box, DiscreteSearchSpace
 from trieste.bayesian_optimizer import BayesianOptimizer
 from trieste.objectives.utils import mk_observer
-from trieste.models import TrainableModelStack
 
 from corel.optimization.pareto_frontier_explorer import make_pareto_frontier_explorer
 from corel.optimization.randomized_pareto_frontier_explorer import make_randomized_pareto_frontier_explorer
@@ -22,9 +16,8 @@ from corel.protein_model import ProteinModel
 from corel.util.constants import PADDING_SYMBOL_INDEX
 from corel.util.util import get_amino_acid_integer_mapping_from_info
 from corel.weightings.hmm.hmm_factory import HMMFactory
-from corel.weightings.hmm.hmm_weighting import HMMWeighting
 
-DEBUG = True
+DEBUG = False
 LOG_POST_PERFORMANCE_METRICS = False
 TEMPLATE = f"python {__file__} "
 
@@ -40,8 +33,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
     caller_info["DEBUG"] = DEBUG  # report if DEBUG flag is set
     if not DEBUG:
         setup_info, blackbox_, train_x_, train_obj, run_info = objective_factory.create(problem, seed=seed,
-                                                                                        caller_info=caller_info,
-                                                                                        observer=None)
+                                                                                        caller_info=caller_info)
     else:
         AMINO_ACIDS = [
             "A",
@@ -70,6 +62,9 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
         train_x_ = ["ARN", "DCEE"]
         train_obj = np.random.randn(2, 2)
 
+    #train_x_ = train_x_[:4]
+    #train_obj = train_obj[:4, ...]
+
     L = setup_info.get_max_sequence_length()
     AA = len(setup_info.get_alphabet())
     if not setup_info.sequences_are_aligned():
@@ -95,7 +90,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
 
     def blackbox(x, context=None):
         x_ = x.numpy()
-        seqs = ["".join([integer_amino_acid_mapping[x_[n, i]] for i in range(x.shape[1]) if x[n,i] != PADDING_SYMBOL_INDEX]) for n in range(x.shape[0])]
+        seqs = np.array(["".join([integer_amino_acid_mapping[x_[n, i]] for i in range(x.shape[1]) if x[n,i] != PADDING_SYMBOL_INDEX]) for n in range(x.shape[0])])
         return tf.constant(blackbox_(seqs, context))
 
     #initialize_logger(setup_info, method_factory.get_params(), seed=seed, run_id=run_info)
@@ -119,7 +114,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
 if __name__ == '__main__':
     tf.config.run_functions_eagerly(run_eagerly=True)
     optimizer_factory = make_randomized_pareto_frontier_explorer
-    run_single_bo_conf("FOLDX_RFP", 5, HMMFactory(), optimizer_factory, seed=0)
+    run_single_bo_conf("FOLDX_RFP", 32, HMMFactory(), optimizer_factory, seed=0)
     exit()
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("-s", "--seed", type=int, default=0)

@@ -1,8 +1,7 @@
 # Setup
 ```
-pip install tensorflow
-pip install tensorflow-probability
 pip install trieste
+pip install -e .
 ```
 
 ## Setting up *Poli*

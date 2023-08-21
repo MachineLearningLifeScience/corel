@@ -1,5 +1,7 @@
 __author__ = 'Simon Bartels'
 
+import time
+
 import numpy as np
 import tensorflow as tf
 from gpflow import default_float
@@ -53,12 +55,21 @@ def make_pareto_frontier_explorer(dataset=None, get_best_of_single_site_mutation
         # seems not
         _, idx = non_dominated(observations_handle(acquisition_function))
         proposal_seqs = inputs_handle(acquisition_function)[idx]
+        print("mutating candidate 0 of " + str(len(proposal_seqs)))
+        t = time.time()
         selected_seq, best_val = get_best_of_single_site_mutations(proposal_seqs[:1, ...], acquisition_function)
+        t = time.time() - t
+        print("time: " + str(t))
         for i in range(1, len(proposal_seqs)):
+            print("mutating candidate " + str(i) + " of " + str(len(proposal_seqs)))
+            t = time.time()
             s, v = get_best_of_single_site_mutations(proposal_seqs[i:i+1, ...], acquisition_function)
+            t = time.time() - t
             if v > best_val:
                 selected_seq = s
                 best_val = v
+            print("time: " + str(t))
+        print("best acquisition value found: " + str(best_val))
         return selected_seq
     return pareto_frontier_explorer
 

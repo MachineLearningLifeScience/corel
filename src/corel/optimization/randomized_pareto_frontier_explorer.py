@@ -25,12 +25,12 @@ def _get_best_of_single_site_mutations(seq, acquisition_function, trials):
     for _ in range(trials):
         l = np.random.randint(0, padded_until)
         assert (PADDING_SYMBOL_INDEX == 0)
-        a = np.random.randint(1, AA)
-        seq_[0, l] = a
-        val_ = acquisition_function(_seq_to_atom(seq_, AA))
-        if val_ > val:
-            seq = tf.constant(seq_.copy())
-            val = val_
+        for a in range(1, AA):
+            seq_[0, l] = a
+            val_ = acquisition_function(_seq_to_atom(seq_, AA))
+            if val_ > val:
+                seq = tf.constant(seq_.copy())
+                val = val_
         seq_[0, l] = seq[0, l].numpy()
     return seq, val
 
