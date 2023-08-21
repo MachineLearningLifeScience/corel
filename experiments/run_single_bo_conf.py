@@ -113,8 +113,12 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
 
 if __name__ == '__main__':
     tf.config.run_functions_eagerly(run_eagerly=True)
+    problem = "FOLDX_RFP"
+    problem_model_mapping = {
+        "FOLDX_RFP": "./assets/hmms/rfp.hmm"
+    }
     optimizer_factory = make_randomized_pareto_frontier_explorer
-    run_single_bo_conf("FOLDX_RFP", 32, HMMFactory(), optimizer_factory, seed=0)
+    run_single_bo_conf(problem, 32, HMMFactory(problem_model_mapping[problem]), optimizer_factory, seed=0)
     exit()
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("-s", "--seed", type=int, default=0)
