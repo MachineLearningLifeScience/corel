@@ -13,7 +13,8 @@ from trieste.objectives.utils import mk_observer
 from corel.optimization.pareto_frontier_explorer import make_pareto_frontier_explorer
 from corel.optimization.randomized_pareto_frontier_explorer import make_randomized_pareto_frontier_explorer
 from corel.protein_model import ProteinModel
-from corel.util.constants import PADDING_SYMBOL_INDEX
+from corel.trieste.custom_batch_acquisition_rule import CustomBatchEfficientGlobalOptimization
+from corel.util.constants import PADDING_SYMBOL_INDEX, BATCH_SIZE
 from corel.util.util import get_amino_acid_integer_mapping_from_info
 from corel.weightings.hmm.hmm_factory import HMMFactory
 
@@ -23,7 +24,7 @@ TEMPLATE = f"python {__file__} "
 
 
 def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
-                       weighting_factory, optimizer_factory, seed: int = 0):
+                       weighting_factory, optimizer_factory, seed: int = 0, batch_evaluations: int = 1):
     # make problem reproducible
     random.seed(seed)
     tf.random.set_seed(seed)
@@ -31,6 +32,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
 
     caller_info = dict()
     caller_info["DEBUG"] = DEBUG  # report if DEBUG flag is set
+    caller_info[BATCH_SIZE] = batch_evaluations
     if not DEBUG:
         setup_info, blackbox_, train_x_, train_obj, run_info = objective_factory.create(problem, seed=seed,
                                                                                         caller_info=caller_info)
@@ -58,7 +60,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
             "V",
         ]
         setup_info = ProblemSetupInformation("FOLDX_RFP", 244, False, AMINO_ACIDS)
-        blackbox_ = lambda s, context=None: np.random.randn(1, 2)
+        blackbox_ = lambda s, context=None: np.random.randn(s.shape[0], 2)
         train_x_ = ["ARN", "DCEE"]
         train_obj = np.random.randn(2, 2)
 
@@ -91,6 +93,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
     def blackbox(x, context=None):
         x_ = x.numpy()
         seqs = np.array(["".join([integer_amino_acid_mapping[x_[n, i]] for i in range(x.shape[1]) if x[n,i] != PADDING_SYMBOL_INDEX]) for n in range(x.shape[0])])
+        #raise NotImplementedError("How to make seqs a numpy array of lists of different length?")
         return tf.constant(blackbox_(seqs, context))
 
     #initialize_logger(setup_info, method_factory.get_params(), seed=seed, run_id=run_info)
@@ -103,7 +106,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
     #ei_search_space = TaggedProductSearchSpace(L * [Box(lower=AA * [0.], upper=AA * [1.])])
     #ei = ExpectedImprovement(search_space=ei_search_space)
     ei = ExpectedHypervolumeImprovement()
-    rule = EfficientGlobalOptimization(optimizer=optimizer_factory(), builder=ei)
+    rule = CustomBatchEfficientGlobalOptimization(optimizer=optimizer_factory(batch_evaluations=batch_evaluations), builder=ei, num_query_points=batch_evaluations)
     weighting = weighting_factory.create(setup_info)
     #model = TrainableModelStack(*[(ProteinModel(weighting, AA=AA), 1) for _ in range(train_obj.shape[1])])
     model = ProteinModel(weighting, AA)
@@ -118,7 +121,8 @@ if __name__ == '__main__':
         "FOLDX_RFP": "./assets/hmms/rfp.hmm"
     }
     optimizer_factory = make_randomized_pareto_frontier_explorer
-    run_single_bo_conf(problem, 32, HMMFactory(problem_model_mapping[problem]), optimizer_factory, seed=0)
+    run_single_bo_conf(problem, 32, HMMFactory(problem_model_mapping[problem]), optimizer_factory,
+                       seed=0, batch_evaluations=16)
     exit()
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("-s", "--seed", type=int, default=0)
