@@ -17,9 +17,9 @@ class KeepKBest:
         self.k = k
         self.copy = copy
         self.vals = -np.infty * np.ones(k)
-        self.elements = np.array(k)
+        self.elements = np.array(k * [object()])
 
-    def new_val(self, val, element) -> bool:
+    def new_val(self, val, element) -> int:
         if val > self.vals[-1]:
             idx = np.argmax(val > self.vals)
             #self.vals = np.stack([self.vals[:idx], [val], self.vals[idx:-1]])
@@ -29,8 +29,8 @@ class KeepKBest:
             self.vals[idx] = val
             self.elements[idx+1:] = self.elements[idx:-1]
             self.elements[idx] = self.copy(element)
-            return True
-        return False
+            return idx
+        return -1
 
     def get(self):
         assert(self.vals.shape[0] == self.k)
