@@ -31,6 +31,7 @@ def combined_optimizer(search_space: SearchSpaceType, acquisition_function) -> t
     #sp = TaggedProductSearchSpace(20 * [Box(lower=[-3.], upper=[3.])])
     sp = Box(lower=-3 * tf.ones(20), upper=3 * tf.ones(20))
     #p = automatic_optimizer_selector(sp, ac)
+    raise NotImplementedError("use bestk implementation")
     x, p, v = None, None, -np.infty
     for _ in range(3):
         try:

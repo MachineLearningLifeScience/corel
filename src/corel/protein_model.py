@@ -1,5 +1,6 @@
 __author__ = 'Simon Bartels'
 
+import logging
 import warnings
 
 import numpy as np
@@ -102,19 +103,24 @@ class ProteinModel(TrainableProbabilisticModel):
         self.log_noises = [tf.Variable(tf.math.log(1e-3 * tf.ones(1, dtype=default_float()))) for _ in range(num_tasks)]
         squared_hellinger_distance = _hellinger_distance(self.ps)
         print("squared Hellinger distance: \n" + str(squared_hellinger_distance.numpy()))
-        optimizer = Scipy()
 
         for i in range(num_tasks):
+            optimizer = Scipy()
+
             def make_closure():
                 def opt_criterion():
                     ks = _k(squared_hellinger_distance, self.log_length_scales[i], self.log_noises[i])
                     try:
+                        #print(ks)
                         L = tf.linalg.cholesky(ks)
+                        #print("worked")
                     except Exception as e:
+                        logging.exception(e)
                         raise e
                     m, r = get_mean_and_amplitude(L, dataset.observations[:, i:i+1])
                     log_prob = multivariate_normal(dataset.observations[:, i:i+1], m * tf.ones([L.shape[0], 1], default_float()),
                                                    tf.sqrt(r) * L)
+                    #print(log_prob)
                     return -tf.reduce_sum(log_prob)
                 return opt_criterion
 
@@ -123,6 +129,8 @@ class ProteinModel(TrainableProbabilisticModel):
                 [self.log_length_scales[i], self.log_noises[i]],
                 # options=dict(maxiter=reduce_in_tests(1000)),
             )
+            print(tf.math.exp(self.log_length_scales[i]))
+            print(tf.math.exp(self.log_noises[i]))
         # TODO: log hyper-parameters
         self.Ls = [tf.linalg.cholesky(_k(squared_hellinger_distance, self.log_length_scales[i], self.log_noises[i])) for i in range(num_tasks)]
         # L_ = tf.linalg.cholesky(K)
@@ -132,6 +140,7 @@ class ProteinModel(TrainableProbabilisticModel):
             self.kernel_means[i], self.amplitudes[i] = get_mean_and_amplitude(self.Ls[i], dataset.observations[:, i:i+1])
         #print("covariance matrix:\n" + str(ks.numpy()))
         print("length scales: " + str([np.exp(self.log_length_scales[i].numpy()) for i in range(num_tasks)]))
+        print("noises: " + str([np.exp(self.log_noises[i].numpy()) for i in range(num_tasks)]))
         self.alphas = [tf.linalg.triangular_solve(self.Ls[i], dataset.observations[:, i:i+1] - self.kernel_means[i], lower=True) for i in range(num_tasks)]
 
 
