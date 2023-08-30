@@ -104,9 +104,15 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
     search_space = TaggedProductSearchSpace(L * [amino_acid_space])
     initial_data = Dataset(query_points=tf.squeeze(tf.constant(train_x)), observations=tf.constant(train_obj))
     bo = BayesianOptimizer(observer, search_space)
-    #ei_search_space = TaggedProductSearchSpace(L * [Box(lower=AA * [0.], upper=AA * [1.])])
-    #ei = ExpectedImprovement(search_space=ei_search_space)
-    ei = ExpectedHypervolumeImprovement()
+    if train_obj.shape[1] == 1:
+        # use expected improvement for single task objectives...
+        ei_search_space = TaggedProductSearchSpace(L * [Box(lower=AA * [0.], upper=AA * [1.])])
+        ei = ExpectedImprovement(search_space=ei_search_space)
+    elif train_obj.shape[1] > 1:
+        # ...and hypervolume EI for multi-task problems
+        ei = ExpectedHypervolumeImprovement()
+    else:
+        raise RuntimeError("What kind of objective is that?!")
     rule = CustomBatchEfficientGlobalOptimization(optimizer=optimizer_factory(batch_evaluations=batch_evaluations), builder=ei, num_query_points=batch_evaluations)
     weighting = weighting_factory.create(setup_info)
     #model = TrainableModelStack(*[(ProteinModel(weighting, AA=AA), 1) for _ in range(train_obj.shape[1])])
