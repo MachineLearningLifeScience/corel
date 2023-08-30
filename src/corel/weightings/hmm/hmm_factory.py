@@ -9,15 +9,14 @@ from hmm_profile import reader
 
 
 class HMMFactory:
-    def __init__(self, hmm_file: str):
+    def __init__(self, hmm_file: str, problem_name: str):
         self.hmm_file = hmm_file
+        self.problem_name = problem_name
 
     def create(self, problem_info: ProblemSetupInformation):
+        # the assertion below is a way to allow the problem mapping to be safely part of the experiment and keeping it out of the corel package
+        assert(problem_info.get_problem_name() == self.problem_name)
         amino_acid_integer_mapping = get_amino_acid_integer_mapping_from_info(problem_info)
-        # TODO: implement a way to dynamically look for models maybe
-        assert(problem_info.get_problem_name() == "FOLDX_RFP")
-        #hmm_file = os.path.join(os.path.dirname(__file__), "hmm_models", "rfp.hmm")
-        #hmm_file = "/home/simon/stuff/projects/bayesian_optimization/prot_bo/corel/experiments/assets/hmms/rfp.hmm"
         with open(self.hmm_file) as f:
             hmm = reader.read_single(f)
             f.close()
