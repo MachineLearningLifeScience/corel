@@ -95,7 +95,6 @@ class ProteinModel(TrainableProbabilisticModel):
         self.dataset = dataset
         self._optimized = True
         # transform query points to one_hot? No, better do that in the distribution. HMMs may prefer that
-        # TODO: the step below is a huge bottleneck! It's repeated for all models but pretty expensive!
         self.ps = self.distribution(dataset.query_points)
         num_tasks = dataset.observations.shape[1]
         # TODO: try median?
