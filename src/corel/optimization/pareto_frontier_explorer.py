@@ -20,8 +20,10 @@ def _get_best_of_single_site_mutations(seq, acquisition_function, bestk: KeepKBe
     AA = acquisition_function._model.AA  # get from ac
 
     seq_ = seq.numpy().copy()
-    val_ = acquisition_function(_seq_to_atom(seq_, AA))
-    bestk.new_val(val_, seq_)
+    # no need to evaluate ac(seq) since we already know the function value anyway
+    #val_ = acquisition_function(_seq_to_atom(seq_, AA))
+    #bestk.new_val(val_, seq_)
+
     positions = position_function(seq)
     for l in positions:
         assert(PADDING_SYMBOL_INDEX == 0)
@@ -61,9 +63,6 @@ def make_pareto_frontier_explorer(dataset=None, position_function=_position_func
         observations_handle = lambda ac: dataset
 
     def pareto_frontier_explorer(search_space: SearchSpaceType, acquisition_function) -> tf.Tensor:
-        # TODO: adapt for batch setting
-        # TODO: test whether it's necessary to change the sign of the observations
-        # seems not
         _, idx = non_dominated(observations_handle(acquisition_function))
         proposal_seqs = inputs_handle(acquisition_function)[idx]
         bestk = KeepKBest(k=batch_evaluations, copy=lambda x: x.copy())
