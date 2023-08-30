@@ -116,7 +116,7 @@ if __name__ == '__main__':
     tf.config.run_functions_eagerly(run_eagerly=True)
     problem = "FOLDX_RFP"
     optimizer_factory = make_randomized_pareto_frontier_explorer
-    run_single_bo_conf(problem, 32, HMMFactory(hmm_problem_model_mapping[problem]), optimizer_factory,
+    run_single_bo_conf(problem, 32, HMMFactory(hmm_problem_model_mapping[problem], problem), optimizer_factory,
                        seed=0, batch_evaluations=16)
     exit()
     parser = argparse.ArgumentParser(description="")
