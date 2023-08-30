@@ -24,13 +24,11 @@ class ProteinModel(TrainableProbabilisticModel):
         self.ps = None
         self.Ls = None  # Cholesky of the kernel matrix
         self.alphas = None
-        # TODO: proper initialization of lengthscale!
-        self.log_length_scales = None #tf.Variable(tf.ones(1, dtype=default_float()))
+        self.log_length_scales = None
         self.amplitudes = None
         self.kernel_means = None
         self.dataset = None
-        #self.noise = 1e-8
-        self.log_noises = None #tf.Variable(1e-8 * tf.ones(1, dtype=default_float()))
+        self.log_noises = None
 
     def _predict(self, query_points: TensorType) -> [[TensorType]]:
         assert(self._optimized)
@@ -168,6 +166,16 @@ def _k(HD, log_lengthscale, log_noise):
 
 
 def get_mean_and_amplitude(L, Y):
+    """
+    This function computes the prior mean constant and the prior amplitude as recommended in the efficient Global
+    optimization paper by Jones et al. (1998).
+    :param L:
+        Cholesky of the kernel matrix
+    :param Y:
+        the target values
+    :return:
+        mean constant and amplitude
+    """
     ones = tf.linalg.triangular_solve(L, tf.ones_like(Y))
     alpha = tf.linalg.triangular_solve(L, Y)
     n = tf.reduce_sum(tf.square(ones))
