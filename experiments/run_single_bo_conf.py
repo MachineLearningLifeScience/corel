@@ -15,7 +15,7 @@ from corel.optimization.randomized_pareto_frontier_explorer import make_randomiz
 from corel.protein_model import ProteinModel
 from corel.trieste.custom_batch_acquisition_rule import CustomBatchEfficientGlobalOptimization
 from corel.util.constants import PADDING_SYMBOL_INDEX, BATCH_SIZE
-from corel.util.util import get_amino_acid_integer_mapping_from_info
+from corel.util.util import get_amino_acid_integer_mapping_from_info, transform_string_sequences_to_integer_arrays
 from corel.weightings.hmm.hmm_factory import HMMFactory
 from experiments.config.problem_mappings import hmm_problem_model_mapping
 
@@ -31,6 +31,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
     tf.random.set_seed(seed)
     np.random.seed(seed)
 
+    # build problem
     caller_info = dict()
     caller_info["DEBUG"] = DEBUG  # report if DEBUG flag is set
     caller_info[BATCH_SIZE] = batch_evaluations
@@ -68,28 +69,14 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
     #train_x_ = train_x_[:4]
     #train_obj = train_obj[:4, ...]
 
+    # make tensorflow wrapper for problem
     L = setup_info.get_max_sequence_length()
     AA = len(setup_info.get_alphabet())
     if not setup_info.sequences_are_aligned():
         AA = AA + 1  # add one index for a padding symbol
     amino_acid_integer_mapping = get_amino_acid_integer_mapping_from_info(setup_info)
     integer_amino_acid_mapping = {amino_acid_integer_mapping[a]: a for a in amino_acid_integer_mapping.keys()}
-    # TODO: move this code to utility function
     assert(PADDING_SYMBOL_INDEX not in amino_acid_integer_mapping.values())
-    train_x = np.zeros([len(train_x_), L], dtype=int)
-    for i in range(len(train_x_)):
-        seq = train_x_[i]
-        if seq == "GEELIKENMHMKLYMEGTVNNHHFKCTTEGEGKPYEGTQTQRIKVVEGGPLPFAFDILATCFSKTFINHTQGIPDFFKQSFPEGFTWERVTTYEDGGVLTVTQDTSLQDGCLIYNVKLRGVNFPSNGPVMQKKTLGWEATTETLYPADGGLEGRCDMALXLVGGGHLHCNLKTTYRSXKPAKNLKMPGVYFVDRRLERIKEADNETYVEQHEVAVARYCDLPSKL":
-            # above seq is problematic due to an X in position 159
-            # according to PDB this sequence has the most (98%) similarity: SKGEELIKENMHMKLYMEGTVNNHHFKCTTEGEGKPYEGTQTQRIKVVEGGPLPFAFDILATCFMYGSKTFINHTQGIPDFFKQSFPEGFTWERVTTYEDGGVLTVTQDTSLQDGCLIYNVKLRGVNFPSNGPVMQKKTLGWEATTETLYPADGGLEGRCDMALKLVGGGHLHCNLKTTYRSKKPAKNLKMPGVYFVDRRLERIKEADNETYVEQHEVAVARYCDLPSKL
-            # I've removed the initial SK and some MYG in the middle
-            # Then it's really just a K in position 159 which is different.
-            #seq[159] = 'K'  # strings are immutable
-            seq = "GEELIKENMHMKLYMEGTVNNHHFKCTTEGEGKPYEGTQTQRIKVVEGGPLPFAFDILATCFSKTFINHTQGIPDFFKQSFPEGFTWERVTTYEDGGVLTVTQDTSLQDGCLIYNVKLRGVNFPSNGPVMQKKTLGWEATTETLYPADGGLEGRCDMALKLVGGGHLHCNLKTTYRSKKPAKNLKMPGVYFVDRRLERIKEADNETYVEQHEVAVARYCDLPSKL"
-        len_seq = len(seq)
-        train_x[i, :len_seq] = np.array([amino_acid_integer_mapping[a] for a in seq])
-        train_x[i, len_seq:] = PADDING_SYMBOL_INDEX
-    train_x = tf.constant(train_x)
 
     def blackbox(x, context=None):
         x_ = x.numpy()
@@ -97,8 +84,12 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
         #raise NotImplementedError("How to make seqs a numpy array of lists of different length?")
         return tf.constant(blackbox_(seqs, context))
 
+    train_x = transform_string_sequences_to_integer_arrays(train_x_, L, amino_acid_integer_mapping)
+
+    # initialize logger (to track algorithm specific metrics)
     #initialize_logger(setup_info, method_factory.get_params(), seed=seed, run_id=run_info)
 
+    # build Trieste problem
     observer = mk_observer(blackbox)
     amino_acid_space = DiscreteSearchSpace(tf.expand_dims(tf.range(AA), axis=-1))
     search_space = TaggedProductSearchSpace(L * [amino_acid_space])
