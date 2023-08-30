@@ -17,6 +17,7 @@ from corel.trieste.custom_batch_acquisition_rule import CustomBatchEfficientGlob
 from corel.util.constants import PADDING_SYMBOL_INDEX, BATCH_SIZE
 from corel.util.util import get_amino_acid_integer_mapping_from_info
 from corel.weightings.hmm.hmm_factory import HMMFactory
+from experiments.config.problem_mappings import hmm_problem_model_mapping
 
 DEBUG = False
 LOG_POST_PERFORMANCE_METRICS = False
@@ -118,7 +119,7 @@ if __name__ == '__main__':
     tf.config.run_functions_eagerly(run_eagerly=True)
     problem = "FOLDX_RFP"
     optimizer_factory = make_randomized_pareto_frontier_explorer
-    run_single_bo_conf(problem, 32, HMMFactory(problem_model_mapping[problem]), optimizer_factory,
+    run_single_bo_conf(problem, 32, HMMFactory(hmm_problem_model_mapping[problem]), optimizer_factory,
                        seed=0, batch_evaluations=16)
     exit()
     parser = argparse.ArgumentParser(description="")
