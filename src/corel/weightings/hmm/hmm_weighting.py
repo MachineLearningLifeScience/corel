@@ -5,18 +5,16 @@ import tensorflow as tf
 from gpflow import default_float
 
 from corel.util.constants import PADDING_SYMBOL_INDEX
+from corel.weightings.abstract_weighting import AbstractWeighting
 from corel.weightings.hmm.hmm_forward import forward
 from corel.weightings.hmm.load_phmm import load_hmm
 
 
-class HMMWeighting:
+class HMMWeighting(AbstractWeighting):
     def __init__(self, hmm, amino_acid_integer_mapping):
         self.s0, self.T, self.em, extra_info_dict = load_hmm(hmm)
         hmm_alphabet = hmm.metadata.alphabet
         self.index_map = {amino_acid_integer_mapping[hmm_alphabet[i]]: i for i in range(len(hmm_alphabet))}
-
-    def __call__(self, *args, **kwargs):
-        return self.expectation(*args, **kwargs)
 
     def expectation(self, p):
         # this implementation currently only supports atomic p
