@@ -4,3 +4,6 @@ __pycache__
 /src/poli/config.rc
 src/poli.egg-info/
 temp
+
+
+.DS_Store

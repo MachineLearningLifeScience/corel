@@ -4,8 +4,8 @@ channels:
   - nvidia
   - defaults
 dependencies:
-  - _libgcc_mutex=0.1
-  - _openmp_mutex=5.1
+  - _libgcc_mutex
+  - _openmp_mutex
   - blas=1.0
   - brotlipy=0.7.0
   - bzip2=1.0.8
@@ -13,7 +13,7 @@ dependencies:
   - certifi=2023.7.22
   - cffi=1.15.1
   - cryptography=41.0.2
-  - cuda-cudart=11.8.89
+  - cuda-cudart
   - cuda-cupti=11.8.87
   - cuda-libraries=11.8.0
   - cuda-nvrtc=11.8.89
@@ -167,4 +167,3 @@ dependencies:
     - werkzeug==2.3.7
     - wrapt==1.14.1
     - zipp==3.16.2
-prefix: /home/pcq275/.conda/envs/corel-env
