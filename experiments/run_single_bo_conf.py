@@ -10,6 +10,7 @@ from trieste.space import TaggedProductSearchSpace, Box, DiscreteSearchSpace
 from trieste.bayesian_optimizer import BayesianOptimizer
 from trieste.objectives.utils import mk_observer
 
+from corel.optimization.lambo_optimizer import make_lambo_optimizer
 from corel.optimization.pareto_frontier_explorer import make_pareto_frontier_explorer
 from corel.optimization.randomized_pareto_frontier_explorer import make_randomized_pareto_frontier_explorer
 from corel.protein_model import ProteinModel
@@ -115,7 +116,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
 if __name__ == '__main__':
     tf.config.run_functions_eagerly(run_eagerly=True)
     problem = "FOLDX_RFP"
-    optimizer_factory = make_randomized_pareto_frontier_explorer
+    optimizer_factory = make_lambo_optimizer
     run_single_bo_conf(problem, 32, HMMFactory(hmm_problem_model_mapping[problem], problem), optimizer_factory,
                        seed=0, batch_evaluations=16)
     exit()
