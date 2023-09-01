@@ -1,6 +1,8 @@
+import argparse
 import random
 import tensorflow as tf
 import numpy as np
+import poli
 from poli import objective_factory
 from poli.core.problem_setup_information import ProblemSetupInformation
 from trieste.acquisition import ExpectedImprovement, ExpectedHypervolumeImprovement
@@ -18,7 +20,11 @@ from corel.trieste.custom_batch_acquisition_rule import CustomBatchEfficientGlob
 from corel.util.constants import PADDING_SYMBOL_INDEX, BATCH_SIZE
 from corel.util.util import get_amino_acid_integer_mapping_from_info, transform_string_sequences_to_integer_arrays
 from corel.weightings.hmm.hmm_factory import HMMFactory
-from experiments.config.problem_mappings import hmm_problem_model_mapping
+# from experiments.config.problem_mappings import hmm_problem_model_mapping
+# TODO: import this from experiments.config
+hmm_problem_model_mapping = {
+    "foldx_rfp": "./assets/hmms/rfp.hmm"
+}
 
 DEBUG = False
 LOG_POST_PERFORMANCE_METRICS = False
@@ -62,7 +68,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
             "Y",
             "V",
         ]
-        setup_info = ProblemSetupInformation("FOLDX_RFP", 244, False, AMINO_ACIDS)
+        setup_info = ProblemSetupInformation("foldx_rfp", 244, False, AMINO_ACIDS)
         blackbox_ = lambda s, context=None: np.random.randn(s.shape[0], 2)
         train_x_ = ["ARN", "DCEE"]
         train_obj = np.random.randn(2, 2)
@@ -114,16 +120,17 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="")
+    parser.add_argument("-s", "--seed", type=int, default=0)
+    parser.add_argument("-m", "--max_evaluations", type=int, default=32)
+    parser.add_argument("-p", "--problem", type=str, default=poli.core.registry.get_problems()[0],
+                        choices=poli.core.registry.get_problems())
+    parser.add_argument("-b", "--batch_evaluations", type=int, default=16)
+    args = parser.parse_args()
     tf.config.run_functions_eagerly(run_eagerly=True)
-    problem = "FOLDX_RFP"
+    problem = "foldx_rfp"
     optimizer_factory = make_lambo_optimizer
     run_single_bo_conf(problem, 32, HMMFactory(hmm_problem_model_mapping[problem], problem), optimizer_factory,
                        seed=0, batch_evaluations=16)
     exit()
-    parser = argparse.ArgumentParser(description="")
-    parser.add_argument("-s", "--seed", type=int, default=0)
-    parser.add_argument("-m", "--max_evaluations", type=int, default=5)
-    parser.add_argument("-p", "--problem", type=str, default=poli.core.registry.get_problems()[0],
-                        choices=poli.core.registry.get_problems())
-    args = parser.parse_args()
     #_call_run(**vars(args))
