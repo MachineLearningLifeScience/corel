@@ -1,7 +1,8 @@
 from typing import List
 from typing import Any
 
-import tensorflow as tf
+import tensorflow.compat.v2 as tf
+tf.enable_v2_behavior()
 
 import tensorflow_datasets as tfds
 import tensorflow_probability as tfp
@@ -17,12 +18,12 @@ class Encoder:
         self.z_dim = z_dim
         self.input_dim = input_dims
         self.n_classes = n_categories
-        dense_layers = [tfkl.Dense(d, activation=tf.nn.leaky_relu) for d in hidden_dims] 
+        dense_layers = [tfkl.Dense(d, activation=tf.nn.leaky_relu, name=f"enc_layer_{i}") for i, d in enumerate(hidden_dims)] 
         self.layers = tfk.Sequential([
             tfkl.InputLayer(input_shape=input_dims),
             tfkl.Flatten(),
             *dense_layers,
-            tfkl.Dense(tfpl.MultivariateNormalTriL.params_size(z_dim), activation=None),
+            tfkl.Dense(tfpl.MultivariateNormalTriL.params_size(z_dim), activation=None, name="dense_MVN_TriL"),
             tfpl.MultivariateNormalTriL(z_dim, activity_regularizer=tfpl.KLDivergenceRegularizer(prior))
         ])
 
@@ -32,13 +33,14 @@ class Decoder:
         self.z_dim = z_dim
         self.input_dims = input_dims
         self.n_classes = n_categories
-        dense_layers = [tfkl.Dense(d, activation=tf.nn.leaky_relu) for d in hidden_dims]
+        dense_layers = [tfkl.Dense(d, activation=tf.nn.leaky_relu, name=f"dec_layer_{i}") for i,d in enumerate(hidden_dims)]
         self.layers = tfk.Sequential([
-            tfkl.InputLayer(input_shape=[z_dim]),
+            tfkl.InputLayer(input_shape=[z_dim], name="z_to_dense"),
             tfkl.Reshape([1, 1, z_dim]),
             *dense_layers,
-            tfkl.Dropout(dropout),
-            tfkl.Flatten(),
+            tfkl.Dropout(dropout, name="dropout"),
+            tfkl.Dense(tfpl.IndependentBernoulli.params_size(input_dims)), # no activation layer into Bernoulli
+            # tfkl.Flatten(),
             tfpl.IndependentBernoulli(input_dims, tfd.Bernoulli.logits),
         ])
 
@@ -51,6 +53,7 @@ class VAE:
         )
         self.encoder = Encoder(z_dim, encoder_layers, input_dims=input_dims, n_categories=n_categories, prior=self.prior)
         self.decoder = Decoder(z_dim, decoder_layers, input_dims=input_dims, n_categories=n_categories)
+
         self.model = tfk.Model(inputs=self.encoder.layers.inputs, outputs=self.decoder.layers(self.encoder.layers.outputs[0]))
     
     @staticmethod
