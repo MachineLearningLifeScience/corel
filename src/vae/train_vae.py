@@ -1,5 +1,6 @@
 import tensorflow as tf
 from warnings import warn
+import os
 
 # TODO: this is bad practice, ADD experiments module to setup cfg
 import sys
@@ -44,10 +45,11 @@ def _preprocess(x):
 
 
 if __name__ == "__main__":
-    BATCHSIZE = 32
-    EPOCHS = 15
+    BATCHSIZE = 128
+    EPOCHS = 500
     SEED = 42
     LR = 1e-3
+    MODEL_PATH = "results/models/vae.ckpt"
     cpu = False
     if tf.test.gpu_device_name() != "/device:GPU:0":
         cpu = True
@@ -73,6 +75,13 @@ if __name__ == "__main__":
     else:
         optimizer = tf.optimizers.Adam(learning_rate=LR)
 
+    checkpoint_dir = os.path.dirname(MODEL_PATH)
+
+    # Create a callback that saves the model's weights
+    cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=MODEL_PATH,
+                                                    save_weights_only=True,
+                                                    verbose=1)
+
     vae.model.compile(optimizer=optimizer, loss=lambda x, model: -model.log_prob(x))
 
-    _ = vae.model.fit(train_dataset, epochs=EPOCHS, validation_data=eval_dataset)
+    _ = vae.model.fit(train_dataset, epochs=EPOCHS, validation_data=eval_dataset, callbacks=[cp_callback])
