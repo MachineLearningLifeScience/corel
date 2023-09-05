@@ -27,7 +27,9 @@ def transform_string_sequences_to_integer_arrays(train_x_, L, amino_acid_integer
 def handle_batch_shape(X: tf.Tensor) -> tf.Tensor:
     if len(X.shape) == 3:
         if X.shape[0] == 1:
-            pass
-        elif:
-            pass # TODO
+            X = tf.reshape(X, shape=X.shape[1:])
+        elif X.shape[1] == 1:
+            X = tf.reshape(X, shape=(X.shape[0], X.shape[2]))
+        else:
+            raise NotImplementedError(f"{X.shape}")
     return X
