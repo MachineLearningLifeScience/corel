@@ -9,13 +9,13 @@ from gpflow.utilities import positive
 from gpflow.utilities import print_summary
 
 from corel.util import handle_batch_shape
-from . import HellingerReference
+from corel.kernel.hellinger_reference import HellingerReference
 
 
 class Hellinger(HellingerReference):
-    def __init__(self, variance: tf.Tensor, lengthscale: float=1.0, noise: float=0.1, active_dims: Optional[int] = None, name: Optional[str] = None) -> None:
+    def __init__(self, lengthscale: float=1.0, noise: float=0.1, active_dims: Optional[int] = None, name: Optional[str] = None) -> None:
         super().__init__(active_dims, name)
-        self.lengthscales = gpflow.Parameter(lengthscale, transform=positive()) # TODO: log transform here?
+        self.lengthscale = gpflow.Parameter(lengthscale, transform=positive()) # TODO: log transform here?
         self.noise = gpflow.Parameter(noise, transform=positive()) # TODO: check against Kernel Interface
 
     def K(self, X, X2=None) -> tf.Tensor:
