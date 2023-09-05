@@ -22,3 +22,12 @@ def transform_string_sequences_to_integer_arrays(train_x_, L, amino_acid_integer
         train_x[i, :len_seq] = np.array([amino_acid_integer_mapping[a] for a in seq])
         train_x[i, len_seq:] = PADDING_SYMBOL_INDEX
     return tf.constant(train_x)
+
+
+def handle_batch_shape(X: tf.Tensor) -> tf.Tensor:
+    if len(X.shape) == 3:
+        if X.shape[0] == 1:
+            pass
+        elif:
+            pass # TODO
+    return X
