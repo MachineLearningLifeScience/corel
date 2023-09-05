@@ -8,25 +8,45 @@ from gpflow.kernels import Kernel
 from gpflow.utilities import positive
 from gpflow.utilities import print_summary
 
+from corel.util import handle_batch_shape
+from . import HellingerReference
 
-class Hellinger(Kernel):
-    def __init__(self, variance: float=1.0, lengthscale: float=1.0, noise: float=0.1, active_dims: Optional[int] = None, name: Optional[str] = None) -> None:
+
+class Hellinger(HellingerReference):
+    def __init__(self, variance: tf.Tensor, lengthscale: float=1.0, noise: float=0.1, active_dims: Optional[int] = None, name: Optional[str] = None) -> None:
         super().__init__(active_dims, name)
-        self.variance = gpflow.Parameter(variance, transform=positive())
         self.lengthscales = gpflow.Parameter(lengthscale, transform=positive()) # TODO: log transform here?
         self.noise = gpflow.Parameter(noise, transform=positive()) # TODO: check against Kernel Interface
 
     def K(self, X, X2=None) -> tf.Tensor:
+        """
+        X input is P(X)
+        """
+        _X = handle_batch_shape(X)
+        _X = self.restore(_X)
         if X2 is None:
             X2 = X
-        # NOTE: X here are p-densities
-        hd = _hellinger_distance(X)
-        lls = tf.log(self.lengthscales)
-        lln = tf.log(self.noise)
-        return self.variance * _k(hd, lls, lln)
+            _X2 = _X
+        M = self._H(_X, _X2)
+
+        if len(X.shape) == 3 or len(X2.shape) == 3:
+            M = tf.reshape(M, shape=(1, *M.shape)) # TODO: check shapes and correct
+        return M
 
     def K_diag(self, X) -> tf.Tensor:
-        return self.variance * tf.reshape(X, (-1,))
+        return tf.ones(X.shape[0])
+
+    def _H(self, X: tf.Tensor, X2: tf.Tensor):
+        M = self._get_inner_product(X, X2)
+        M = 1 - M
+        M[M < 0.] = 0.
+        M = tf.where(M == 0., tf.zeros_like(M), M) # fix gradients
+        M = tf.exp(-tf.sqrt(M) / tf.square(self.lengthscale))
+        return M
+
+    def _get_inner_product(self, X: tf.Tensor, X2: tf.Tensor):
+        M = tf.math.reduce_sum(tf.sqrt(X[None, ...] * X2[:, None, ...]), axis=-1)
+        return tf.math.reduce_prod(M, axis=-1)
 
 
 def _hellinger_distance(ps):
