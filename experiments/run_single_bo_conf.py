@@ -6,6 +6,7 @@ import poli
 from poli import objective_factory
 from poli.core.abstract_black_box import AbstractBlackBox
 from poli.core.problem_setup_information import ProblemSetupInformation
+from poli.core.util.external_observer import ExternalObserver
 from trieste.acquisition import ExpectedImprovement, ExpectedHypervolumeImprovement
 from trieste.acquisition.rule import EfficientGlobalOptimization, SearchSpaceType
 from trieste.data import Dataset
@@ -45,7 +46,9 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
     caller_info[BATCH_SIZE] = batch_evaluations
     if not DEBUG:
         setup_info, blackbox_, train_x_, train_obj, run_info = objective_factory.create(problem, seed=seed,
-                                                                                        caller_info=caller_info)
+                                                                                        caller_info=caller_info,
+                                                                                        force_isolation=True,
+                                                                                        observer=ExternalObserver())
     else:
         AMINO_ACIDS = [
             "A",
@@ -132,9 +135,8 @@ if __name__ == '__main__':
     parser.add_argument("-b", "--batch_evaluations", type=int, default=16)
     args = parser.parse_args()
     tf.config.run_functions_eagerly(run_eagerly=True)
+    #_call_run(**vars(args))
     problem = "foldx_rfp"
     optimizer_factory = make_lambo_optimizer
     run_single_bo_conf(problem, 32, HMMFactory(hmm_problem_model_mapping[problem], problem), optimizer_factory,
                        seed=0, batch_evaluations=16)
-    exit()
-    #_call_run(**vars(args))
