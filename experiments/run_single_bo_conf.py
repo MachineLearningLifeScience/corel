@@ -2,6 +2,7 @@ import random
 import tensorflow as tf
 import numpy as np
 from poli import objective_factory
+from poli.core.abstract_black_box import AbstractBlackBox
 from poli.core.problem_setup_information import ProblemSetupInformation
 from trieste.acquisition import ExpectedImprovement, ExpectedHypervolumeImprovement
 from trieste.acquisition.rule import EfficientGlobalOptimization, SearchSpaceType
@@ -63,7 +64,10 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
             "V",
         ]
         setup_info = ProblemSetupInformation("FOLDX_RFP", 244, False, AMINO_ACIDS)
-        blackbox_ = lambda s, context=None: np.random.randn(s.shape[0], 2)
+        class DebugBlackBox(AbstractBlackBox):
+            def _black_box(self, x, context=None):
+                return np.random.randn(x.shape[0], 2)
+        blackbox_ = DebugBlackBox(setup_info)
         train_x_ = ["ARN", "DCEE"]
         train_obj = np.random.randn(2, 2)
 
