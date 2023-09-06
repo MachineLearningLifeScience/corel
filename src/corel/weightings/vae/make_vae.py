@@ -1,3 +1,7 @@
+"""
+CBAS VAE architecture and training from existing models.
+"""
+
 import os
 import numpy as np
 

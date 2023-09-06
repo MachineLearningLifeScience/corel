@@ -11,6 +11,11 @@ from gpflow.optimizers import Scipy
 from trieste.data import Dataset
 from trieste.models import TrainableProbabilisticModel
 from trieste.types import TensorType
+from typing import List
+
+from corel.kernel.hellinger import get_mean_and_amplitude
+from corel.kernel.hellinger import _hellinger_distance
+from corel.kernel.hellinger import _k
 
 
 class ProteinModel(TrainableProbabilisticModel):
@@ -30,7 +35,7 @@ class ProteinModel(TrainableProbabilisticModel):
         self.dataset = None
         self.log_noises = None
 
-    def _predict(self, query_points: TensorType) -> [[TensorType]]:
+    def _predict(self, query_points: TensorType) -> List[List[TensorType]]:
         assert(self._optimized)
         if query_points.dtype.is_integer:
             # TODO: this should maybe be an input transformation?
@@ -140,48 +145,3 @@ class ProteinModel(TrainableProbabilisticModel):
         print("noises: " + str([np.exp(self.log_noises[i].numpy()) for i in range(num_tasks)]))
         self.alphas = [tf.linalg.triangular_solve(self.Ls[i], dataset.observations[:, i:i+1] - self.kernel_means[i], lower=True) for i in range(num_tasks)]
 
-
-def _hellinger_distance(ps):
-    """
-    This function assumes that elements with exactly the same probability are the same!
-    :param ps:
-    :type ps:
-    :return:
-    :rtype:
-    """
-    squared_hellinger_distance = (ps + tf.transpose(ps)) / 2
-    # if we have the same point twice, set the distance to 0 there
-    squared_hellinger_distance = tf.where(
-        ps - tf.transpose(ps) == 0,
-        tf.zeros_like(squared_hellinger_distance), squared_hellinger_distance)
-    return squared_hellinger_distance
-
-
-def _k(HD, log_lengthscale, log_noise):
-    #K = (X + tf.transpose(X)) / 2
-    #K = tf.linalg.set_diag(K, tf.zeros(K.shape[0], dtype=K.dtype))
-    K = tf.math.exp(-tf.sqrt(HD) / tf.exp(log_lengthscale))
-    K = K + tf.math.exp(log_noise) * tf.eye(K.shape[0], dtype=K.dtype)
-    return K
-
-
-def get_mean_and_amplitude(L, Y):
-    """
-    This function computes the prior mean constant and the prior amplitude as recommended in the efficient Global
-    optimization paper by Jones et al. (1998).
-    :param L:
-        Cholesky of the kernel matrix
-    :param Y:
-        the target values
-    :return:
-        mean constant and amplitude
-    """
-    ones = tf.linalg.triangular_solve(L, tf.ones_like(Y))
-    alpha = tf.linalg.triangular_solve(L, Y)
-    n = tf.reduce_sum(tf.square(ones))
-    m = tf.reduce_sum(ones * alpha) / n
-    #r = tf.reduce_sum(tf.square(alpha - m * tf.ones_like(Y)))
-    # Above amplitude estimator seems to be missing a normalization!
-    # below is the factor as set in Jones et al. 1998
-    r = tf.reduce_sum(tf.square(alpha - m * tf.ones_like(Y))) / Y.shape[0]
-    return m, r
