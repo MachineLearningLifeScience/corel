@@ -1,3 +1,3 @@
-from models import VAE
-from models import Encoder
-from models import Decoder
+from .models import VAE
+from .models import Encoder
+from .models import Decoder
