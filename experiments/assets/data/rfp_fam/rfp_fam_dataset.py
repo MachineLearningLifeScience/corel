@@ -14,6 +14,6 @@ train_files = [f_name for f_name in train_data_path.glob('*.fasta')]
 test_files = [f_name for f_name in test_data_path.glob('*.fasta')]
 
 
-train_dataset = tf.data.TextLineDataset(train_files)
+rfp_train_dataset = tf.data.TextLineDataset(train_files)
 
-test_dataset = tf.data.TextLineDataset(test_files)
+rfp_test_dataset = tf.data.TextLineDataset(test_files)

@@ -16,7 +16,7 @@ tfd = tfp.distributions
 class Encoder:
     def __init__(self, z_dim: int, hidden_dims: List[int], input_dims: int, n_categories: int, prior) -> None:
         self.z_dim = z_dim
-        self.input_dim = input_dims
+        self.input_dims = input_dims
         self.n_classes = n_categories
         dense_layers = [tfkl.Dense(d, activation=tf.nn.leaky_relu, name=f"enc_layer_{i}") for i, d in enumerate(hidden_dims)] 
         self.layers = tfk.Sequential([
@@ -57,5 +57,12 @@ class VAE:
         self.model = tfk.Model(inputs=self.encoder.layers.inputs, outputs=self.decoder.layers(self.encoder.layers.outputs[0]))
     
     @staticmethod
-    def neg_ll(x, rv_x):
-        return -rv_x.log_prob(x)
+    def neg_ll(x, model):
+        return -model.log_prob(x)
+
+    def p(self, x: tf.Tensor, dtype=tf.float64) -> tf.Tensor:
+        logits_z0 = self.decoder.layers(x)
+        logits_z0 = tf.cast(logits_z0, dtype)
+        ps = tf.sigmoid(logits_z0) # TFP: "the probability of an [Bernoulli] event is sigmoid(logits)"
+        ps = tf.constant(ps.numpy() / tf.reduce_sum(ps, axis=-1).numpy()[..., None]) # probits need to sum to one
+        return ps
