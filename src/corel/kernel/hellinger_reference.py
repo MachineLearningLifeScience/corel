@@ -8,7 +8,7 @@ from gpflow.utilities import print_summary
 
 
 class HellingerReference(Kernel):
-    def __init__(self, L:int, AA:int, variance: float=1.0, lengthscale: float=1.0, noise: float=0.1, active_dims: Optional[int] = None, name: Optional[str] = None) -> None:
+    def __init__(self, L:int, AA:int, lengthscale: float=1.0, noise: float=0.1, active_dims: Optional[int] = None, name: Optional[str] = None) -> None:
         super().__init__(active_dims, name)
         self.AA = AA
         self.L = L
@@ -16,7 +16,9 @@ class HellingerReference(Kernel):
         self.noise = gpflow.Parameter(noise, transform=positive()) # TODO: check against Kernel Interface
 
     def restore(self, ps: tf.Tensor) -> tf.Tensor:
-        return tf.reshape(ps, shape=(ps.shape[0], ps.shape[1] // self.AA,  self.AA))
+        ps = tf.squeeze(ps)
+        N = 1 if len(ps.shape) == 1 else ps.shape[0]
+        return tf.reshape(ps, shape=(N, ps.shape[-1] // self.AA,  self.AA))
 
     def K(self, X, X2=None) -> tf.Tensor:
         if X2 is None:

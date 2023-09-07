@@ -13,8 +13,8 @@ from corel.kernel.hellinger_reference import HellingerReference
 
 
 class Hellinger(HellingerReference):
-    def __init__(self, lengthscale: float=1.0, noise: float=0.1, active_dims: Optional[int] = None, name: Optional[str] = None) -> None:
-        super().__init__(active_dims, name)
+    def __init__(self, L: int, AA: int, lengthscale: float=1.0, noise: float=0.1, active_dims: Optional[int] = None, name: Optional[str] = None) -> None:
+        super().__init__(L=L, AA=AA, active_dims=active_dims, name=name)
         self.lengthscale = gpflow.Parameter(lengthscale, transform=positive()) # TODO: log transform here?
         self.noise = gpflow.Parameter(noise, transform=positive()) # TODO: check against Kernel Interface
 
@@ -22,15 +22,26 @@ class Hellinger(HellingerReference):
         """
         X input is P(X)
         """
-        _X = handle_batch_shape(X)
-        _X = self.restore(_X)
+        _X = handle_batch_shape(X) # TODO: correct batch handling
         if X2 is None:
             X2 = X
             _X2 = _X
+        else:
+            _X2 = handle_batch_shape(X2)
+        if len(X.shape) == 3: # if [1; N ; D] => [1; N ; L ; cat]
+            _X = self.restore(X)
+        if len(X2.shape) == 3:
+            _X2 = self.restore(X2)
+        assert _X.shape[-1] == self.AA and _X.shape[-2] == self.L
+        assert _X2.shape[-1] == self.AA and _X2.shape[-2] == self.L
+
         M = self._H(_X, _X2)
 
-        if len(X.shape) == 3 or len(X2.shape) == 3:
-            M = tf.reshape(M, shape=(1, *M.shape)) # TODO: check shapes and correct
+        if len(X.shape) >= 3 or len(X2.shape) >= 3:
+            if X.shape == X2.shape:
+                M = tf.reshape(M, shape=(1, *M.shape)) # TODO: check shapes and correct
+            else:
+                M = tf.reshape(M, shape=(1, M.shape[0], 1, M.shape[1])) # adhere to [batch..., N1, batch..., N2]
         return M
 
     def K_diag(self, X) -> tf.Tensor:
@@ -39,14 +50,16 @@ class Hellinger(HellingerReference):
     def _H(self, X: tf.Tensor, X2: tf.Tensor):
         M = self._get_inner_product(X, X2)
         M = 1 - M
-        M[M < 0.] = 0.
+        M = tf.where(M < 0., tf.zeros_like(M), M)
+        
         M = tf.where(M == 0., tf.zeros_like(M), M) # fix gradients
         M = tf.exp(-tf.sqrt(M) / tf.square(self.lengthscale))
         return M
 
     def _get_inner_product(self, X: tf.Tensor, X2: tf.Tensor):
-        M = tf.math.reduce_sum(tf.sqrt(X[None, ...] * X2[:, None, ...]), axis=-1)
-        return tf.math.reduce_prod(M, axis=-1)
+        # M = tf.math.reduce_sum(tf.sqrt(X[None, ...] * X2[:, None, ...]), axis=-1)
+        M = tf.einsum('ali,bli->abl', tf.sqrt(X), tf.sqrt(X2)) # NOTE: the einsum and reduce_sum product should be equivalent
+        return tf.math.reduce_prod(M, axis=-1) # product over L, positions factorize
 
 
 def _hellinger_distance(ps):

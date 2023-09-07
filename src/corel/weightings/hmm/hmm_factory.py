@@ -21,3 +21,6 @@ class HMMFactory:
             hmm = reader.read_single(f)
             f.close()
         return HMMWeighting(hmm, amino_acid_integer_mapping)
+
+    def get_name(self):
+        return self.__class__.__name__
