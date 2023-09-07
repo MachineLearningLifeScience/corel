@@ -24,7 +24,7 @@ class HMMWeighting(AbstractWeighting):
             if not tf.reduce_all(tf.pow(p, p) == 1.):
                 print(p)
                 raise NotImplementedError("Expectations w.r.t. non-atomic distributions not implemented")
-            # TODO: get argmax
+            assert(len(p.shape) == 3)
             p = tf.argmax(p, axis=-1)
 
         e = np.zeros([p.shape[0], 1])
