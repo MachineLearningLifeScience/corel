@@ -98,10 +98,13 @@ class ProteinModel(TrainableProbabilisticModel):
         self.dataset = dataset
         self._optimized = True
         # transform query points to one_hot? No, better do that in the distribution. HMMs may prefer that
+        # TODO: identified the slow culprit! Avoid forward passes for already processed sequences!
+        print("getting probabilities of sequences")
         self.ps = self.distribution(dataset.query_points)
         num_tasks = dataset.observations.shape[1]
         # TODO: try median?
-        self.log_length_scales = [tf.Variable(tf.math.log(tf.reduce_mean(self.ps) * tf.ones(1, dtype=default_float()))) for _ in range(num_tasks)]
+        initial_length_scale = np.sqrt(np.median(self.ps.numpy()))
+        self.log_length_scales = [tf.Variable(tf.math.log(initial_length_scale * tf.ones(1, dtype=default_float()))) for _ in range(num_tasks)]
         self.log_noises = [tf.Variable(tf.math.log(1e-3 * tf.ones(1, dtype=default_float()))) for _ in range(num_tasks)]
         squared_hellinger_distance = _hellinger_distance(self.ps)
         print("squared Hellinger distance: \n" + str(squared_hellinger_distance.numpy()))
