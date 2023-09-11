@@ -9,7 +9,7 @@ if "/Users/rcml/corel/" not in sys.path:
 from experiments.assets.data.rfp_fam import rfp_train_dataset
 from experiments.assets.data.rfp_fam import rfp_test_dataset
 
-from src.vae.models import VAE
+from corel.weightings.vae.base.models import VAE
 
 
 # TODO: make this alphabet part of a ProblemInfo

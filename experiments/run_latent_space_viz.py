@@ -10,9 +10,9 @@ from gpflow.logdensities import multivariate_normal
 from gpflow.optimizers import Scipy
 from gpflow.kernels import Matern52
 
-from vae.models import VAE
-from vae.train_vae import _preprocess
-from vae.vae_factory import VAEFactory
+from corel.weightings.vae.base.models import VAE
+from corel.weightings.vae.base.train_vae import _preprocess
+from corel.weightings.vae.base.vae_factory import VAEFactory
 from corel.weightings.hmm.hmm_factory import HMMFactory
 from corel.kernel import Hellinger
 from corel.kernel import WeightedHellinger
@@ -31,16 +31,8 @@ train_dataset = rfp_train_dataset.map(_preprocess).batch(128).prefetch(tf.data.A
 test_dataset = rfp_test_dataset.map(_preprocess).batch(128).prefetch(tf.data.AUTOTUNE)
 x0 = next(iter(train_dataset))[0][0]
 
-vae_dict = dict( # TODO: make this part of a central config: use for training, instantiating factory function etc.
-    z_dim=2, # =10 
-    input_dims=x0.shape,
-    n_categories=tf.constant(20), # NOTE: see tf.constant(len(AMINO_ACIDS))
-    encoder_layers=[1000, 250], 
-    decoder_layers=[250, 1000],
-)
-
 MODELS = {
-    "vae": VAEFactory("results/models/vae_z_2_rfp_fam.ckpt", None, **vae_dict),
+    "vae": VAEFactory("/Users/rcml/corel/results/models/vae_z_2_rfp_fam.ckpt", None),
     "hmm": HMMFactory("./assets/hmms/rfp.hmm", None)
     }
 
