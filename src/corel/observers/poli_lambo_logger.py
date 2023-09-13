@@ -78,7 +78,7 @@ class PoliLamboLogger(AbstractObserver):
                 new_volume = self._compute_hyper_volume(ymat)
                 log({ABS_HYPER_VOLUME: new_volume, REL_HYPER_VOLUME: new_volume / self.initial_pareto_front_volume},
                     step=self.step)
-                log({"LAMBO_REL_HYPER_VOLUME": self._compute_lambo_hyper_volume(ymat) / self.lambo_initial_pareto_front_volume},
+                log({"LAMBO_REL_HYPER_VOLUME": self._compute_lambo_hyper_volume(np.array(self.lambo_values)) / self.lambo_initial_pareto_front_volume},
                     step=self.step)
 
             log_sequence(x, step=self.step, verbose=True)
@@ -114,10 +114,10 @@ class PoliLamboLogger(AbstractObserver):
         # ref_point = -infer_reference_point(-tymat[idx, ...])
         # Not the same but a BoTorch implementation of the same algorithm as in LaMBO
         # No negation all_y!
-        norm_pareto_targets = self.lambo_transform(all_y[idx, ...])
+        norm_pareto_targets = self.lambo_transform(all_y[idx, ...]).clone().detach()
         #print(norm_pareto_targets)
         # this implementation of volume computation assumes maximization
-        return Hypervolume(-self.transformed_lambo_ref_point).compute(torch.tensor(-norm_pareto_targets))
+        return Hypervolume(-self.transformed_lambo_ref_point).compute(-norm_pareto_targets)
 
     def _add_initial_observations(self, x0, y0):
         self.step = -len(x0)
