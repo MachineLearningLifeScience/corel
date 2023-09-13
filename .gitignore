@@ -18,3 +18,6 @@ experiments/assets/data/rfp_fam/test
 
 experiments/assets/data/blat_fam/train
 experiments/assets/data/blat_fam/test
+
+*.a2m
+*.tree
