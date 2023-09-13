@@ -25,7 +25,7 @@ from corel.weightings.hmm.hmm_factory import HMMFactory
 # from experiments.config.problem_mappings import hmm_problem_model_mapping
 # TODO: import this from experiments.config
 hmm_problem_model_mapping = {
-    "foldx_rfp": "./assets/hmms/rfp.hmm"
+    "foldx_rfp_lambo": "/Users/rcml/corel/experiments/assets/hmms/rfp.hmm"
 }
 
 DEBUG = False
@@ -72,7 +72,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
             "Y",
             "V",
         ]
-        setup_info = ProblemSetupInformation("foldx_rfp", 244, False, AMINO_ACIDS)
+        setup_info = ProblemSetupInformation(problem, 244, False, AMINO_ACIDS)
         class DebugBlackBox(AbstractBlackBox):
             def _black_box(self, x, context=None):
                 return np.random.randn(x.shape[0], 2)
@@ -136,7 +136,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     tf.config.run_functions_eagerly(run_eagerly=True)
     #_call_run(**vars(args))
-    problem = "foldx_rfp"
+    problem = "foldx_rfp_lambo"
     optimizer_factory = make_lambo_optimizer
     run_single_bo_conf(problem, 32, HMMFactory(hmm_problem_model_mapping[problem], problem), optimizer_factory,
                        seed=0, batch_evaluations=16)

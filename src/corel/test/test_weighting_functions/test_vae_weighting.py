@@ -7,9 +7,9 @@ import sys
 if "/Users/rcml/corel/" not in sys.path: # TODO: refactor
     sys.path.append("/Users/rcml/corel/")
 from experiments.assets.data.rfp_fam import rfp_train_dataset
-from src.vae.models import VAE
-from src.vae.train_vae import _preprocess
-from src.vae.vae_factory import VAEFactory
+from corel.weightings.vae.base.models import VAE
+from corel.weightings.vae.base.train_vae import _preprocess
+from corel.weightings.vae.base.vae_factory import VAEFactory
 
 train_dataset = rfp_train_dataset.map(_preprocess).batch(128).prefetch(tf.data.AUTOTUNE).shuffle(123)
 x0 = next(iter(train_dataset))[0][0]
