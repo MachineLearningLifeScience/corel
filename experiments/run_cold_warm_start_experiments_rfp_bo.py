@@ -21,7 +21,7 @@ from poli.core.util.external_observer import ExternalObserver
 from corel.optimization.lambo_optimizer import make_lambo_optimizer
 from corel.protein_model import ProteinModel
 
-from corel.util.constants import BATCH_SIZE, PADDING_SYMBOL_INDEX, SEED, STARTING_N
+from corel.util.constants import BATCH_SIZE, PADDING_SYMBOL_INDEX, SEED, STARTING_N, MODEL
 from corel.trieste.custom_batch_acquisition_rule import CustomBatchEfficientGlobalOptimization
 from corel.util.util import get_amino_acid_integer_mapping_from_info
 from corel.util.util import transform_string_sequences_to_integer_arrays
@@ -81,6 +81,8 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
     caller_info = {
         BATCH_SIZE: batch,
         SEED: seed,
+        STARTING_N: n_allowed_observations,
+        MODEL: p_factory.__class__.__name__,
     }
     problem_info, _f, _x0, _y0, run_info = objective_factory.create(
         name=problem,
@@ -106,7 +108,7 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
         _x = x.numpy()
         # TODO map tensor to decode function?
         seqs = np.array([
-            "".join([aa_mapping.get(_x[n, i]) for i in range(x.shape[1]) if x[n,i] != PADDING_SYMBOL_INDEX]) 
+            "".join([aa_mapping[_x[n, i]] for i in range(x.shape[1]) if x[n,i] != PADDING_SYMBOL_INDEX]) 
                 for n in range(x.shape[0])]
         )
         return tf.constant(f(seqs, context))
@@ -133,7 +135,7 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
 if __name__ == "__main__":
     # NOTE: this is currently the RFP experiment, other experiments require other experiment run scripts
     parser = argparse.ArgumentParser(description="Experiment Specifications Cold to Warm-Start")
-    parser.add_argument("-s", "--seed", type=int, default=42, help="Random seed for experiments.")
+    parser.add_argument("-s", "--seed", type=int, default=0, help="Random seed for experiments.")
     parser.add_argument("-m", "--max_evaluations", type=int, default=120, help="Optimization budget, number of possible observations.")
     parser.add_argument("-p", "--problem", type=str, choices=list(problem_model_mapping.keys()), default=list(problem_model_mapping.keys())[0], help="Problem description as string key.")
     parser.add_argument("-b", "--batch", type=int, default=16)
