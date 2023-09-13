@@ -12,3 +12,9 @@ temp
 */corel.egg-info/*
 
 results/
+
+experiments/assets/data/rfp_fam/train
+experiments/assets/data/rfp_fam/test
+
+experiments/assets/data/blat_fam/train
+experiments/assets/data/blat_fam/test
