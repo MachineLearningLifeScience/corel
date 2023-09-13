@@ -21,7 +21,7 @@ from poli.core.util.external_observer import ExternalObserver
 from corel.optimization.lambo_optimizer import make_lambo_optimizer
 from corel.protein_model import ProteinModel
 
-from corel.util.constants import BATCH_SIZE, PADDING_SYMBOL_INDEX, SEED, STARTING_N, MODEL
+from corel.util.constants import ALGORITHM, BATCH_SIZE, PADDING_SYMBOL_INDEX, SEED, STARTING_N, MODEL
 from corel.trieste.custom_batch_acquisition_rule import CustomBatchEfficientGlobalOptimization
 from corel.util.util import get_amino_acid_integer_mapping_from_info
 from corel.util.util import transform_string_sequences_to_integer_arrays
@@ -75,14 +75,13 @@ def get_acquisition_function_from_y(y: tf.Tensor, L: int, AA: int) -> object:
 def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observations: int, problem: str, p_factory: object):
     if not problem:
         raise ValueError("Specify Problem!")
-    if not batch or batch > n_allowed_observations:
-        batch = n_allowed_observations
     set_seeds(seed)
     caller_info = {
         BATCH_SIZE: batch,
         SEED: seed,
         STARTING_N: n_allowed_observations,
         MODEL: p_factory.__class__.__name__,
+        ALGORITHM: "COREL",
     }
     problem_info, _f, _x0, _y0, run_info = objective_factory.create(
         name=problem,
