@@ -53,6 +53,7 @@ class PoliLamboLogger(AbstractObserver):
         )
         self.transformed_lambo_ref_point = torch.tensor([-0.11583198, 0.46189176])
         self.lambo_initial_pareto_front_volume = 0.6751
+        self.lambo_values = []
 
     def observe(self, x: np.ndarray, y: np.ndarray, context=None) -> None:
         assert(y.shape[0] == 1)  # can process only one datapoint at a time
@@ -60,6 +61,7 @@ class PoliLamboLogger(AbstractObserver):
             self.step += 1
             self.sequences.append(x)
             self.vals.append(y[0, :])
+            self.lambo_values.append(y[0, :])
             log({BLACKBOX + str(i): y[0, i] for i in range(y.shape[1])}, step=self.step)
             ymat = np.array(self.vals)
             mins = np.min(ymat, axis=0)
@@ -102,7 +104,6 @@ class PoliLamboLogger(AbstractObserver):
         # Not the same but a BoTorch implementation of the same algorithm as in LaMBO
         # No negation all_y!
         norm_pareto_targets = self.transform(all_y[idx, ...])
-        #print(norm_pareto_targets)
         # this implementation of volume computation assumes maximization
         return Hypervolume(-self.transformed_pareto_volume_ref_point).compute(torch.tensor(-norm_pareto_targets))
 
@@ -123,16 +124,31 @@ class PoliLamboLogger(AbstractObserver):
         for i in range(y0.shape[0]):
             self.observe(x0[i:i+1, ...], y0[i:i + 1, ...])
         # the assertion assumes that the step increase is executed in the beginning of #observe
+        # RESET LamBO values
+        self.lambo_values = [
+             [-11189.00587946, -39.8155],
+             [-10376.84011515, -71.4708],
+             [-10820.91136186, -55.6143],
+             [-11558.62762577,  29.6978],
+             [-11445.82982225, -27.9617],
+             [-10591.87684184, -61.8757]
+        ]
         assert(self.step == 0)
         if y0.shape[1] > 1:
             transformed_pareto_volume_ref_point, self.transform = get_pareto_reference_point(y0)
             self.transformed_pareto_volume_ref_point = torch.Tensor(transformed_pareto_volume_ref_point)
             self.initial_pareto_front_volume = self._compute_hyper_volume(y0)
             log({ABS_HYPER_VOLUME: self.initial_pareto_front_volume}, step=self.step)
+            #transformed_pareto_volume_ref_point, self.transform = get_pareto_reference_point(y0)
+            #self.transformed_pareto_volume_ref_point = torch.Tensor(transformed_pareto_volume_ref_point)
+            lambo_initial_pareto_front_volume = self._compute_lambo_hyper_volume(np.array(self.lambo_values))
+            log({"LAMBO_ABS_HYPER_VOLUME": lambo_initial_pareto_front_volume}, step=self.step)
+            self.lambo_initial_pareto_front_volume = lambo_initial_pareto_front_volume
 
     def finish(self) -> None:
         finish()
 
 
 if __name__ == '__main__':
+    set_observer(PoliLamboLogger(), conda_environment_location="/Users/rcml/miniforge3/envs/poli__lambo")
     set_observer(PoliLamboLogger(), conda_environment_location="/Users/rcml/miniforge3/envs/lambo-env")
