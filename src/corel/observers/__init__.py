@@ -1,2 +1,0 @@
-from corel.observers.poli_base_logger import PoliLogger
-from corel.observers.poli_lambo_logger import PoliLamboLogger
