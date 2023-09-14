@@ -4,6 +4,7 @@ import numpy as np
 # os.environ["TF_CPP_MIN_LOG_LEVEL"] = "4"
 import tensorflow as tf
 import matplotlib.pyplot as plt
+from typing import Tuple
 
 from gpflow import default_float, set_trainable
 from gpflow.logdensities import multivariate_normal
@@ -26,25 +27,21 @@ import sys
 if "/Users/rcml/corel/" not in sys.path:
     sys.path.append("/Users/rcml/corel/")
 from experiments.assets.data.rfp_fam import rfp_train_dataset, rfp_test_dataset
-
-train_dataset = rfp_train_dataset.map(_preprocess).batch(128).prefetch(tf.data.AUTOTUNE).shuffle(42)
-test_dataset = rfp_test_dataset.map(_preprocess).batch(128).prefetch(tf.data.AUTOTUNE)
-x0 = next(iter(train_dataset))[0][0]
-
-MODELS = {
-    "vae": VAEFactory("/Users/rcml/corel/results/models/vae_z_2_rfp_fam.ckpt", None),
-    "hmm": HMMFactory("./assets/hmms/rfp.hmm", None)
-    }
+from experiments.assets.data.blat_fam import blat_train_dataset, blat_test_dataset
 
 
-def run_latent_space_visualization(seed: int, model_key: str, val_range: tuple=(-1,-1), ref_point: tuple=(0,0)) -> None:
+def run_latent_space_visualization(
+    seed: int, model_factory: str, data_key: str, train_dataset, test_dataset,
+    val_range: tuple=(-1,-1), ref_point: tuple=(0,0)
+    ) -> None:
     np.random.seed(seed)
     tf.random.set_seed(seed)
     x1, x2 = val_range
 
-    ## MORE COMPLEX LVM MODEL
-    p_model_factory = MODELS.get(model_key)
-    p_model = p_model_factory.create(None)
+    x0 = next(iter(train_dataset))[0][0]
+
+    ## LOAD LVM MODEL
+    p_model = model_factory.create(None)
 
     # VISUALIZE 2D Latent space all points against each other...
     fig, ax = plt.subplots(1, 2, figsize=(15, 7), sharex=True, sharey=True, squeeze=False)
@@ -68,8 +65,8 @@ def run_latent_space_visualization(seed: int, model_key: str, val_range: tuple=(
     # # TODO: implement weighted HK
     # p0 = p_model.p(tf.zeros((1,2)))
     # plotlatentspace_lvm_refpoint(WeightedHellinger(z=p0, L=L, AA=n_cat), p_model, ax=ax[0,2], xmin=x1, xmax=x2)
-    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_{'_'.join([str(x) for x in ref_point])}_Matern52_Hellinger.png")
-    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_{'_'.join([str(x) for x in ref_point])}_Matern52_Hellinger.pdf")
+    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_{'_'.join([str(x) for x in ref_point])}_Matern52_Hellinger_{data_key}.png")
+    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_{'_'.join([str(x) for x in ref_point])}_Matern52_Hellinger_{data_key}.pdf")
     plt.show()
 
     # VISUALIZE 2D Latent space against sequences from the training set
@@ -115,16 +112,63 @@ def run_latent_space_visualization(seed: int, model_key: str, val_range: tuple=(
     plt.show()
 
 
+def run_latent_samples_visualization(model_factory: object, data_key: str, train_dataset, test_dataset):
+    fig, ax = plt.subplots(1, 1, figsize=(8,8))
+    ## LOAD LVM MODEL
+    p_model = model_factory.create(None)
+    z_coords = []
+    for _batch, _ in train_dataset: # TODO: compute for all data
+        z_dist_batch = p_model.encoder.layers(_batch)
+        mean_coords = z_dist_batch.mean().numpy()
+        z_coords.append(mean_coords)
+    for _batch, _ in test_dataset:
+        z_dist_batch = p_model.encoder.layers(_batch)
+        mean_coords = z_dist_batch.mean().numpy()
+        z_coords.append(mean_coords)
+    coords = tf.concat(z_coords, 0).numpy()
+    ax.scatter(coords[:, 0], coords[:, 1], alpha=0.0005)
+    plt.title(f"Latent Representation \n{data_key}")
+    plt.savefig(f"/Users/rcml/corel/results/figures/lvm/latent_z_{data_key}_latent_mean.png")
+    plt.savefig(f"/Users/rcml/corel/results/figures/lvm/latent_z_{data_key}_latent_mean.pdf")
+    plt.show()
+
+
+def load_dataset(data_key: str) -> Tuple[tf.Tensor]:
+    ## LOAD DATASET
+    if data_key.lower() == "rfp_fam":
+        train_dataset = rfp_train_dataset.map(_preprocess).batch(128).prefetch(tf.data.AUTOTUNE).shuffle(42)
+        test_dataset = rfp_test_dataset.map(_preprocess).batch(128).prefetch(tf.data.AUTOTUNE)
+    elif data_key.lower() == "blat_fam":
+        train_dataset = blat_train_dataset.map(_preprocess).batch(128).prefetch(tf.data.AUTOTUNE).shuffle(42)
+        test_dataset = blat_test_dataset.map(_preprocess).batch(128).prefetch(tf.data.AUTOTUNE)
+    else:
+        raise ValueError("Specify dataset from list of available datasets!")
+    return train_dataset, test_dataset
+
 
 if __name__ == '__main__':
-    latent_models_list = list(MODELS.keys())
+    data_list = ["rfp_fam", "blat_fam"]
+    model_list = ["vae", "hmm"]
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("-s", "--seed", help="Seed for distributions and random sampling of values.", type=int, default=0)
     #parser.add_argument("--samples", help="Number of samples to compute values.", type=int, default=2000)
     parser.add_argument("--ranges", help="Samples of latent space are in ranges (x1, x2)\in R", type=tuple, default=(-4, 4))
-    parser.add_argument("-m", "--model", help="Latent model factory identifier", type=str, choices=latent_models_list, default="vae")
+    parser.add_argument("-m", "--model", help="Latent model factory identifier", type=str, choices=model_list, default="vae")
     parser.add_argument("--reference", help="Reference point in LVM", type=tuple, default=(0,0))
+    parser.add_argument("-d", "--dataset", help="Protein Family, for sample and LVM loading", type=str, choices=data_list, default=data_list[0])
     args = parser.parse_args()
     tf.config.run_functions_eagerly(run_eagerly=True)
 
-    run_latent_space_visualization(seed=args.seed, val_range=args.ranges, model_key=args.model, ref_point=args.reference)
+    X_train, X_test = load_dataset(args.dataset)
+
+    model_factories = {
+        "vae": VAEFactory(f"/Users/rcml/corel/results/models/vae_z_2_{args.dataset}.ckpt", problem_name=args.dataset),
+        "hmm": HMMFactory("./assets/hmms/rfp.hmm", None)
+    }
+
+    run_latent_samples_visualization(model_factory=model_factories.get(args.model), data_key=args.dataset,
+                                    train_dataset=X_train, test_dataset=X_test)
+    run_latent_space_visualization(seed=args.seed, data_key=args.dataset,
+        train_dataset=X_train, test_dataset=X_test,
+        val_range=args.ranges, model_factory=model_factories.get(args.model), 
+        ref_point=args.reference)
