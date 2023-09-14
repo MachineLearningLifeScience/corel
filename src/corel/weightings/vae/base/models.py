@@ -7,6 +7,8 @@ tf.enable_v2_behavior()
 import tensorflow_datasets as tfds
 import tensorflow_probability as tfp
 
+from corel.weightings.vae.base import LATENT_DIM, DECODER_LAYERS, ENCODER_LAYERS, DROPOUT_RATE, KL_WEIGHT, PRIOR_SCALE
+
 tfk = tf.keras
 tfkl = tf.keras.layers
 tfpl = tfp.layers
@@ -24,12 +26,12 @@ class Encoder:
             tfkl.Flatten(),
             *dense_layers,
             tfkl.Dense(tfpl.MultivariateNormalTriL.params_size(z_dim), activation=None, name="dense_MVN_TriL"),
-            tfpl.MultivariateNormalTriL(z_dim, activity_regularizer=tfpl.KLDivergenceRegularizer(prior))
+            tfpl.MultivariateNormalTriL(z_dim, activity_regularizer=tfpl.KLDivergenceRegularizer(prior, weight=KL_WEIGHT))
         ])
 
 
 class Decoder:
-    def __init__(self, z_dim: int, hidden_dims: List[int], input_dims: int, n_categories: int, dropout: float=0.5) -> None:
+    def __init__(self, z_dim: int, hidden_dims: List[int], input_dims: int, n_categories: int, dropout: float=DROPOUT_RATE) -> None:
         self.z_dim = z_dim
         self.input_dims = input_dims
         self.n_classes = n_categories
@@ -46,9 +48,9 @@ class Decoder:
 
 
 class VAE:
-    def __init__(self, z_dim: int, input_dims: int, n_categories: int, encoder_layers = [1000, 250], decoder_layers = [250, 1000], ) -> None:
+    def __init__(self, z_dim: int, input_dims: int, n_categories: int, encoder_layers = ENCODER_LAYERS, decoder_layers = DECODER_LAYERS) -> None:
         self.prior = tfd.Independent(
-            tfd.Normal(loc=tf.zeros(z_dim), scale=1), # TODO: LaPlace prior instead of Std Normal prior?
+            tfd.Normal(loc=tf.zeros(z_dim), scale=PRIOR_SCALE), # TODO: LaPlace prior instead of Std Normal prior?
             reinterpreted_batch_ndims=1 
         )
         self.encoder = Encoder(z_dim, encoder_layers, input_dims=input_dims, n_categories=n_categories, prior=self.prior)

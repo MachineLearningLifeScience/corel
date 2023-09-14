@@ -9,6 +9,7 @@ if "/Users/rcml/corel/" not in sys.path:
 from experiments.assets.data.rfp_fam import rfp_train_dataset, rfp_test_dataset
 from experiments.assets.data.blat_fam import blat_train_dataset, blat_test_dataset
 from corel.weightings.vae.base.models import VAE
+from corel.weightings.vae.base import LATENT_DIM
 
 
 # TODO: make this alphabet part of a ProblemInfo
@@ -46,19 +47,17 @@ def _preprocess(x, vocab=AMINO_ACIDS):
 
 if __name__ == "__main__":
     BATCHSIZE = 128
-    EPOCHS = 250
+    EPOCHS = 50
     SEED = 42
     LR = 1e-3
     cpu = False
-    dataset = "blat_fam" # "rfp_fam"
+    dataset =  "blat_fam" # "rfp_fam" #
     if tf.test.gpu_device_name() != "/device:GPU:0":
         cpu = True
         warn("GPU device not found.")
     else:
         print(f"SUCCESS: Found GPU: {tf.test.gpu_device_name()}")
 
-    # TODO: create TF dataset class from RFP MSA
-    #datasets = tfds.load(name="rfp_fam", as_supervised=False)  FIXME: rfp_fam does not registered
     if dataset == "rfp_fam":
         train_dataset = rfp_train_dataset.map(_preprocess).batch(BATCHSIZE).prefetch(tf.data.AUTOTUNE).shuffle(SEED)
         eval_dataset = rfp_test_dataset.map(_preprocess).batch(BATCHSIZE).prefetch(tf.data.AUTOTUNE)
@@ -70,7 +69,7 @@ if __name__ == "__main__":
 
     x0 = next(iter(train_dataset))[0][0]
 
-    vae = VAE(z_dim=2, input_dims=x0.shape, n_categories=tf.constant(len(AMINO_ACIDS)))
+    vae = VAE(z_dim=LATENT_DIM, input_dims=x0.shape, n_categories=x0.shape[-1])
 
     if cpu: # NOTE: M1/M2 processors require legacy Adam
         optimizer = tf.optimizers.legacy.Adam(learning_rate=LR)
