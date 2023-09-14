@@ -13,11 +13,12 @@ temp
 
 results/
 
-experiments/assets/data/rfp_fam/train
-experiments/assets/data/rfp_fam/test
+experiments/assets/data/rfp_fam/train_seq
+experiments/assets/data/rfp_fam/test_seq
 
-experiments/assets/data/blat_fam/train
-experiments/assets/data/blat_fam/test
+experiments/assets/data/blat_fam/train_seq
+experiments/assets/data/blat_fam/test_seq
 
 *.a2m
 *.tree
+*.fasta
