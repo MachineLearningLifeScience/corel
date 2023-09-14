@@ -6,9 +6,8 @@ import os
 import sys
 if "/Users/rcml/corel/" not in sys.path:
     sys.path.append("/Users/rcml/corel/")
-from experiments.assets.data.rfp_fam import rfp_train_dataset
-from experiments.assets.data.rfp_fam import rfp_test_dataset
-
+from experiments.assets.data.rfp_fam import rfp_train_dataset, rfp_test_dataset
+from experiments.assets.data.blat_fam import blat_train_dataset, blat_test_dataset
 from corel.weightings.vae.base.models import VAE
 
 
@@ -51,6 +50,7 @@ if __name__ == "__main__":
     SEED = 42
     LR = 1e-3
     cpu = False
+    dataset = "blat_fam" # "rfp_fam"
     if tf.test.gpu_device_name() != "/device:GPU:0":
         cpu = True
         warn("GPU device not found.")
@@ -59,10 +59,15 @@ if __name__ == "__main__":
 
     # TODO: create TF dataset class from RFP MSA
     #datasets = tfds.load(name="rfp_fam", as_supervised=False)  FIXME: rfp_fam does not registered
-    train_dataset = rfp_train_dataset.map(_preprocess).batch(BATCHSIZE).prefetch(tf.data.AUTOTUNE).shuffle(SEED)
-    eval_dataset = rfp_test_dataset.map(_preprocess).batch(BATCHSIZE).prefetch(tf.data.AUTOTUNE)
+    if dataset == "rfp_fam":
+        train_dataset = rfp_train_dataset.map(_preprocess).batch(BATCHSIZE).prefetch(tf.data.AUTOTUNE).shuffle(SEED)
+        eval_dataset = rfp_test_dataset.map(_preprocess).batch(BATCHSIZE).prefetch(tf.data.AUTOTUNE)
+    elif dataset == "blat_fam":
+        train_dataset = blat_train_dataset.map(_preprocess).batch(BATCHSIZE).prefetch(tf.data.AUTOTUNE).shuffle(SEED)
+        eval_dataset = blat_test_dataset.map(_preprocess).batch(BATCHSIZE).prefetch(tf.data.AUTOTUNE)
+    else:
+        raise ValueError("Specify dataset from [RFP ; BLAT]!")
 
-    #x0 = train_dataset.take(1).get_single_element()
     x0 = next(iter(train_dataset))[0][0]
 
     vae = VAE(z_dim=2, input_dims=x0.shape, n_categories=tf.constant(len(AMINO_ACIDS)))
@@ -72,8 +77,7 @@ if __name__ == "__main__":
     else:
         optimizer = tf.optimizers.Adam(learning_rate=LR)
 
-    ds_name = "rfp_fam" # TODO: make this an option that selects datasets by key
-    MODEL_PATH = f"results/models/vae_z_{vae.encoder.z_dim}_{ds_name}.ckpt"
+    MODEL_PATH = f"results/models/vae_z_{vae.encoder.z_dim}_{dataset}.ckpt"
     checkpoint_dir = os.path.dirname(MODEL_PATH)
     # Create a callback that saves the model's weights
     cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=MODEL_PATH,
