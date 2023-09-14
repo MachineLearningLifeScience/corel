@@ -6,10 +6,10 @@ from corel.weightings.vae.make_vae import build_vae
 
 
 class CBASVAEWrapper:
-    def __init__(self, AA: int, L: int):
+    def __init__(self, AA: int, L: int, prefix):
         self.L = L
         self.AA = AA
-        prefix = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+        #prefix = os.path.join(os.path.dirname(os.path.abspath(__file__)))
         vae_0 = build_vae(latent_dim=20,
                           n_tokens=self.AA, #20,  # TODO: I guess this is self.AA?
                           seq_length=self.L,
