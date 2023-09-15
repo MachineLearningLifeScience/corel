@@ -47,11 +47,11 @@ def _preprocess(x, vocab=AMINO_ACIDS):
 
 if __name__ == "__main__":
     BATCHSIZE = 128
-    EPOCHS = 50
+    EPOCHS = 100
     SEED = 42
     LR = 1e-3
     cpu = False
-    dataset =  "blat_fam" # "rfp_fam" #
+    dataset =  "rfp_fam" # "blat_fam" # 
     if tf.test.gpu_device_name() != "/device:GPU:0":
         cpu = True
         warn("GPU device not found.")
