@@ -46,12 +46,12 @@ def _preprocess(x, vocab=AMINO_ACIDS):
 
 
 if __name__ == "__main__":
-    BATCHSIZE = 128
-    EPOCHS = 100
+    BATCHSIZE = 200 #128
+    EPOCHS = 100 # RFP=1000 BLAT = 100
     SEED = 42
     LR = 1e-3
     cpu = False
-    dataset =  "rfp_fam" # "blat_fam" # 
+    dataset = "blat_fam" # "rfp_fam" #
     if tf.test.gpu_device_name() != "/device:GPU:0":
         cpu = True
         warn("GPU device not found.")
@@ -64,6 +64,8 @@ if __name__ == "__main__":
     elif dataset == "blat_fam":
         train_dataset = blat_train_dataset.map(_preprocess).batch(BATCHSIZE).prefetch(tf.data.AUTOTUNE).shuffle(SEED)
         eval_dataset = blat_test_dataset.map(_preprocess).batch(BATCHSIZE).prefetch(tf.data.AUTOTUNE)
+    elif dataset == "zinc":
+        raise NotImplementedError("TODO!")
     else:
         raise ValueError("Specify dataset from [RFP ; BLAT]!")
 
