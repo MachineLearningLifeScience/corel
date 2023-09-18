@@ -34,13 +34,12 @@ problem_model_mapping = { # TODO: these filenames should come from a config and 
         "hmm": "./experiments/assets/hmms/rfp.hmm",
         "vae": "./results/models/vae_z_2_rfp_fam.ckpt"
         },
-    "foldx_gfp": {}, # TODO: implement
-    "qed_logp": {}, # TODO: implement
+    "rank_gfp": {}, # TODO: implement
 }
 
 AVAILABLE_WEIGHTINGS = [HMMFactory, VAEFactory]
 # number of available observation from cold (0.) to warm (250+) start
-AVAILABLE_SEQUENCES_N = [0, 16, 256, 512]
+AVAILABLE_SEQUENCES_N = [1, 16, 512]
 
 RFP_PROBLEM_NAMES = list(problem_model_mapping.keys())
 
@@ -105,7 +104,6 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
 
     def f_wrapper(x, f=_f, aa_mapping: dict=int_aa_mapping, context=None):
         _x = x.numpy()
-        # TODO map tensor to decode function?
         seqs = np.array([
             "".join([aa_mapping[_x[n, i]] for i in range(x.shape[1]) if x[n,i] != PADDING_SYMBOL_INDEX]) 
                 for n in range(x.shape[0])]

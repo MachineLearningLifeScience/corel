@@ -3,15 +3,15 @@ import warnings
 
 import mlflow
 import os
+from pathlib import Path
 
 from corel.observers.constants import SEQUENCE, SEED
 
 
 DEBUG = False
-EXPERIMENT_PATH = "/Users/rcml/corel/results/mlruns/" # TODO: make this modular dependent on pacakge or config file
+EXPERIMENT_PATH = Path(Path(__file__).parents[2], "results/mlruns")
 
 tracking_uri = EXPERIMENT_PATH
-#logging.debug("Tracking results in " + tracking_uri)
 if DEBUG:
     logging.fatal("Tracking results in " + tracking_uri)
 mlflow.set_tracking_uri(tracking_uri)
