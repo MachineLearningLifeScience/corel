@@ -5,15 +5,13 @@ import mlflow
 import os
 from pathlib import Path
 
-from corel.observers.constants import SEQUENCE, SEED
+from corel.observers import SEQUENCE, SEED
 
 
-DEBUG = False
-EXPERIMENT_PATH = Path(Path(__file__).parents[2], "results/mlruns")
+EXPERIMENT_PATH = Path(Path(__file__).parents[3], "results/mlruns")
 
-tracking_uri = EXPERIMENT_PATH
-if DEBUG:
-    logging.fatal("Tracking results in " + tracking_uri)
+tracking_uri = EXPERIMENT_PATH.as_posix()
+logging.info("Tracking results in " + tracking_uri)
 mlflow.set_tracking_uri(tracking_uri)
 
 
