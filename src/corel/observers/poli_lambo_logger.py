@@ -151,5 +151,4 @@ class PoliLamboLogger(AbstractObserver):
 
 
 if __name__ == '__main__':
-    set_observer(PoliLamboLogger(), conda_environment_location="/Users/rcml/miniforge3/envs/poli__lambo")
-    set_observer(PoliLamboLogger(), conda_environment_location="/Users/rcml/miniforge3/envs/lambo-env")
+    set_observer(PoliLamboLogger(), conda_environment_location="poli__lambo")
