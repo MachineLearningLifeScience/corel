@@ -1,11 +1,14 @@
 import tensorflow as tf
 from warnings import warn
 import os
+from pathlib import Path
 
 # TODO: this is bad practice, ADD experiments module to setup cfg
 import sys
-if "/Users/rcml/corel/" not in sys.path:
-    sys.path.append("/Users/rcml/corel/")
+import corel
+corel_path = str(Path(corel.__file__).parent.parent.parent.resolve()) # TODO: check
+if corel_path not in sys.path:
+    sys.path.append(corel_path)
 from experiments.assets.data.rfp_fam import rfp_train_dataset, rfp_test_dataset
 from experiments.assets.data.blat_fam import blat_train_dataset, blat_test_dataset
 from corel.weightings.vae.base.models import VAE
@@ -51,7 +54,7 @@ if __name__ == "__main__":
     SEED = 42
     LR = 1e-3
     cpu = False
-    dataset = "blat_fam" # "rfp_fam" #
+    dataset =  "rfp_fam" # "blat_fam" #
     if tf.test.gpu_device_name() != "/device:GPU:0":
         cpu = True
         warn("GPU device not found.")
