@@ -52,8 +52,8 @@ def run_latent_space_visualization(
     # weighted hellinger kernel with p0
     p0 = p_model.p(tf.zeros((1,2)))
     # plotlatentspace_lvm(WeightedHellinger(p=p0, L=L, AA=n_cat), p_model, ax=ax[0,2], xmin=x1, xmax=x2)
-    plt.savefig("/Users/rcml/corel/results/figures/kernel/latent_all_Matern52_Hellinger.png")
-    plt.savefig("/Users/rcml/corel/results/figures/kernel/latent_all_Matern52_Hellinger.pdf")
+    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_all_Matern52_Hellinger_{data_key}.png")
+    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_all_Matern52_Hellinger_{data_key}.pdf")
     plt.show()
 
     # VISUALIZE 2D Latent space against reference point
@@ -89,8 +89,8 @@ def run_latent_space_visualization(
             # # TODO: implement weighted HK
             # p0 = p_model.p(tf.zeros((1,2)))
             # plotlatentspace_lvm_refpoint(WeightedHellinger(z=p0, L=L, AA=n_cat), p_model, ax=ax[0,2], xmin=x1, xmax=x2, ref_point=x)
-    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_samples_{N}_Matern52_Hellinger.png")
-    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_samples_{N}_Matern52_Hellinger.pdf")
+    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_samples_{N}_Matern52_Hellinger_{data_key}.png")
+    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_samples_{N}_Matern52_Hellinger_{data_key}.pdf")
     plt.show()
 
     # VISUALIZE 2D Latent space against other points in latent space
@@ -114,6 +114,7 @@ def run_latent_space_visualization(
 
 def run_latent_samples_visualization(model_factory: object, data_key: str, train_dataset, test_dataset):
     fig, ax = plt.subplots(1, 1, figsize=(8,8))
+    alpha = 0.25 if "blat" not in data_key else 0.15
     ## LOAD LVM MODEL
     p_model = model_factory.create(None)
     z_coords = []
@@ -126,7 +127,9 @@ def run_latent_samples_visualization(model_factory: object, data_key: str, train
         mean_coords = z_dist_batch.mean().numpy()
         z_coords.append(mean_coords)
     coords = tf.concat(z_coords, 0).numpy()
-    ax.scatter(coords[:, 0], coords[:, 1], alpha=0.0005)
+    ax.scatter(coords[:, 0], coords[:, 1], alpha=alpha, s=2)
+    # ax.set_xlim((-5,2))
+    # ax.set_ylim((-6,3))
     plt.title(f"Latent Representation \n{data_key}")
     plt.savefig(f"/Users/rcml/corel/results/figures/lvm/latent_z_{data_key}_latent_mean.png")
     plt.savefig(f"/Users/rcml/corel/results/figures/lvm/latent_z_{data_key}_latent_mean.pdf")
@@ -147,7 +150,7 @@ def load_dataset(data_key: str) -> Tuple[tf.Tensor]:
 
 
 if __name__ == '__main__':
-    data_list = ["rfp_fam", "blat_fam"]
+    data_list = ["blat_fam", "rfp_fam",]
     model_list = ["vae", "hmm"]
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("-s", "--seed", help="Seed for distributions and random sampling of values.", type=int, default=0)
