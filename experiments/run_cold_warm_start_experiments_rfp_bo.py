@@ -87,7 +87,10 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
         seed=seed,
         caller_info=caller_info,
         observer=ExternalObserver(),
-        force_register=True
+        force_register=True,
+        parallelize=False, # TODO: enable parallelize
+        # num_workers=4,
+        # batch_size=1,
     )
     # subselect initial data and observations
     _x0 = _x0[:n_allowed_observations] 
@@ -133,9 +136,9 @@ if __name__ == "__main__":
     # NOTE: this is currently the RFP experiment, other experiments require other experiment run scripts
     parser = argparse.ArgumentParser(description="Experiment Specifications Cold to Warm-Start")
     parser.add_argument("-s", "--seed", type=int, default=0, help="Random seed for experiments.")
-    parser.add_argument("-m", "--max_evaluations", type=int, default=120, help="Optimization budget, number of possible observations.")
+    parser.add_argument("-m", "--max_evaluations", type=int, default=100, help="Optimization budget, number of possible observations.")
     parser.add_argument("-p", "--problem", type=str, choices=list(problem_model_mapping.keys()), default=list(problem_model_mapping.keys())[0], help="Problem description as string key.")
-    parser.add_argument("-b", "--batch", type=int, default=16)
+    parser.add_argument("-b", "--batch", type=int, default=1)
     parser.add_argument("-n", "--number_observations", type=int, choices=AVAILABLE_SEQUENCES_N, default=AVAILABLE_SEQUENCES_N[-1])
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-w", "--weighting", type=str, choices=AVAILABLE_WEIGHTINGS, default=AVAILABLE_WEIGHTINGS[0])
