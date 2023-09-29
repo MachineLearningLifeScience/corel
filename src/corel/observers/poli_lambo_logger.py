@@ -3,7 +3,7 @@ __author__ = 'Simon Bartels'
 This Observer requires a lambo-specific environment with [lambo ; torch ; botorch] installed.
 Use fx poli__lambo environment or install the environment specified in https://github.com/samuelstanton/lambo/tree/main/lambo
 """
-
+from pathlib import Path
 import numpy as np
 from typing import Tuple
 import torch
@@ -14,6 +14,7 @@ from poli.core.registry import set_observer
 from poli.core.util.abstract_observer import AbstractObserver
 
 from lambo.optimizers.pymoo import Normalizer
+import corel
 from corel.observers import HD_PREV, HD_WT, HD_MIN, SEQUENCE, BLACKBOX, MIN_BLACKBOX, ABS_HYPER_VOLUME, REL_HYPER_VOLUME
 from corel.observers.logger import log, initialize_logger, finish, log_sequence
 
@@ -72,8 +73,7 @@ class PoliLamboLogger(AbstractObserver):
             log({MIN_BLACKBOX + str(i): mins[i] for i in range(y.shape[1])}, step=self.step)
             if self.info.sequences_are_aligned() and len(self.sequences) > 1:
                 # TODO: monitor statistics for the unaligned case
-                log({#SEQUENCE: x,
-                     HD_PREV: np.sum((self.sequences[-2] - x) != 0),
+                log({HD_PREV: np.sum((self.sequences[-2] - x) != 0),
                      HD_WT: np.sum((self.wt - x) != 0),
                      HD_MIN: np.min(np.sum(np.vstack(self.sequences[:-1]) - x != 0, axis=-1)),
                      }, step=self.step, verbose=True)
@@ -151,4 +151,7 @@ class PoliLamboLogger(AbstractObserver):
 
 
 if __name__ == '__main__':
-    set_observer(PoliLamboLogger(), conda_environment_location="poli__lambo")
+    results_tracking_uri = Path(corel.__file__).parent.parent.parent.resolve() / "results" / "mlruns"
+    set_observer(observer=PoliLamboLogger(), 
+                conda_environment_location="poli__lambo",
+                observer_name="PoliLamboLogger")
