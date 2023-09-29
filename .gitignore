@@ -5,6 +5,8 @@ __pycache__
 src/poli.egg-info/
 temp
 
+*.code-workspace
+
 
 .DS_Store
 .vscode
