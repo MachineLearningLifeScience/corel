@@ -3,6 +3,7 @@ import random
 from typing import Callable
 import numpy as np
 import tensorflow as tf
+from pathlib import Path
 
 from trieste.data import Dataset
 from trieste.space import TaggedProductSearchSpace
@@ -28,13 +29,18 @@ from corel.util.util import transform_string_sequences_to_integer_arrays
 from corel.protein_model import ProteinModel
 from corel.weightings.hmm.hmm_factory import HMMFactory
 from corel.weightings.vae.base.vae_factory import VAEFactory
+# from corel.observers.poli_lambo_logger import PoliLamboLogger
+# from corel.observers.poli_base_logger import PoliBaseMlFlowObserver
 
 problem_model_mapping = { # TODO: these filenames should come from a config and are problem specific
     "foldx_rfp_lambo": {
-        "hmm": "./experiments/assets/hmms/rfp.hmm",
+        "hmm": "./experiments/assets/hmms/rfp.hmm", # TODO: make this relative filenmae
         "vae": "./results/models/vae_z_2_rfp_fam.ckpt"
         },
     "rank_gfp": {}, # TODO: implement
+    "foldx_stability_and_sasa":{
+        "hmm": "./experiments/assets/hmms/rfp.hmm"
+    }
 }
 
 AVAILABLE_WEIGHTINGS = [HMMFactory, VAEFactory]
@@ -71,7 +77,7 @@ def get_acquisition_function_from_y(y: tf.Tensor, L: int, AA: int) -> object:
     return ei
 
 
-def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observations: int, problem: str, p_factory: object):
+def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observations: int, problem: str, p_factory: object, data_path=None):
     if not problem:
         raise ValueError("Specify Problem!")
     set_seeds(seed)
@@ -82,16 +88,32 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
         MODEL: p_factory.__class__.__name__,
         ALGORITHM: "COREL",
     }
-    problem_info, _f, _x0, _y0, run_info = objective_factory.create(
-        name=problem,
-        seed=seed,
-        caller_info=caller_info,
-        observer=ExternalObserver(),
-        force_register=True,
-        parallelize=False, # TODO: enable parallelize
-        # num_workers=4,
-        # batch_size=1,
-    )
+    if problem == 'foldx_rfp_lambo':
+        problem_info, _f, _x0, _y0, run_info = objective_factory.create(
+            name=problem,
+            seed=seed,
+            caller_info=caller_info,
+            observer=ExternalObserver(observer_name="PoliLamboLogger"), # NOTE: This has to be the lambo specific logger
+            force_register=True,
+            parallelize=False, # NOTE: unaligned problem and setup DO NOT allow parallelization
+        )
+    elif problem == 'foldx_stability_and_sasa':
+        if not data_path:
+            raise ValueError("Please provide location of PDB files!")
+        assets_pdb_paths = list(Path(data_path).glob("*/wt_input_Repair.pdb"))
+        problem_info, _f, _x0, _y0, run_info = objective_factory.create(
+            name=problem,
+            seed=seed,
+            caller_info=caller_info,
+            wildtype_pdb_path=assets_pdb_paths,
+            observer=ExternalObserver(observer_name="PoliBaseMlFlowObserver"), # NOTE: for general reference and comparability this should be a base logger
+            force_register=True,
+            parallelize=True,
+            num_workers=4,
+            batch_size=batch,
+        )
+    else:
+        raise NotImplementedError
     # subselect initial data and observations
     _x0 = _x0[:n_allowed_observations] 
     y0 = _y0[:n_allowed_observations]
@@ -142,6 +164,7 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--number_observations", type=int, choices=AVAILABLE_SEQUENCES_N, default=AVAILABLE_SEQUENCES_N[-1])
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-w", "--weighting", type=str, choices=AVAILABLE_WEIGHTINGS, default=AVAILABLE_WEIGHTINGS[0])
+    parser.add_argument("-d", "--data_dir", type=str, default=None, help="Absolute path to PDB assets.")
     args = parser.parse_args()
     
     tf.config.run_functions_eagerly(run_eagerly=True)
@@ -152,7 +175,8 @@ if __name__ == "__main__":
         budget=args.max_evaluations, 
         batch=args.batch, 
         n_allowed_observations=args.number_observations,
-        p_factory=args.weighting(problem_model_mapping[args.problem][model_key], args.problem)
+        p_factory=args.weighting(problem_model_mapping[args.problem][model_key], args.problem),
+        data_path=args.data_dir
     )
     if args.verbose:
         print(f"Optimal result: {result}")
