@@ -77,27 +77,9 @@ class PoliBaseMlFlowObserver(AbstractObserver):
         y0: np.ndarray,
         seed: int,
     ) -> None:
-        if "run_id" in caller_info:
-            run_id = caller_info["run_id"] # TODO: correct run_id
-        else:
-            run_id = None
-
-        if "experiment_id" in caller_info:
-            experiment_id = caller_info["experiment_id"]
-        else:
-            experiment_id = None
         
         self.info = problem_setup_info
-
-        # Sets up the MLFlow experiment
-        # Is there an experiment running at the moment?
-        if mlflow.active_run() is not None:
-            # If so, continue to log in it.
-            mlflow.set_experiment(mlflow.active_run().info.experiment_name)
-        else:
-            # If not, create a new one.
-            mlflow.set_tracking_uri(self.tracking_uri)
-            mlflow.start_run(run_id=run_id, experiment_id=experiment_id)
+        self.run_id = initialize_logger(problem_setup_info, caller_info, seed)
 
         mlflow.log_params(
             {
@@ -179,17 +161,16 @@ class PoliBaseMlFlowObserver(AbstractObserver):
         return Hypervolume(-self.transformed_pareto_volume_ref_point).compute(torch.tensor(-norm_pareto_targets))
 
     def finish(self) -> None:
-        sequences = np.array(self.sequences)
-        init_sequences = np.array(self.initial_sequences)
-        obs = np.array(self.values)
-        init_obs = np.array(self.initial_values)
-        if isinstance(self.tracking_uri, Path):
-            with open(self.tracking_uri / "sequences_observations.npz", "wb") as f:
-                np.savez(f, x=sequences, x0=init_sequences, y=obs, y0=init_obs)
-            mlflow.log_artifact(self.tracking_uri / "sequences.npz")
-            mlflow.log_dict(self.additional_metrics, "additional_metrics.json")
-        else:
-            raise FileNotFoundError(f"Could not persist files! {self.tracking_uri}")
+        _seqs = ["".join(list(s[0])) for s in self.sequences if s.dtype == "<U1"]
+        sequences = np.array(_seqs)
+        init_sequences = np.array(self.initial_sequences[0])
+        obs = np.concatenate(self.values)
+        init_obs = np.concatenate(self.initial_values)
+        artifact_uri = mlflow.active_run().info.artifact_uri
+        seq_array_artifact_path = Path(artifact_uri) / "sequences_observations.npz"
+        np.savez(seq_array_artifact_path, x=sequences, x0=init_sequences, y=obs, y0=init_obs)
+        mlflow.log_artifact(seq_array_artifact_path)
+        # mlflow.log_dict(self.additional_metrics, "additional_metrics.json")
         mlflow.end_run()
 
 
