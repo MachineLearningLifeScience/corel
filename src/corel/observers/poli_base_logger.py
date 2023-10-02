@@ -63,6 +63,7 @@ class PoliBaseMlFlowObserver(AbstractObserver):
         self.initial_sequences = []
         self.values = []
         self.sequences = []
+        self.additional_metrics = {}
         self.info = None
 
         self.transformed_pareto_volume_ref_point = None
@@ -77,7 +78,7 @@ class PoliBaseMlFlowObserver(AbstractObserver):
         seed: int,
     ) -> None:
         if "run_id" in caller_info:
-            run_id = caller_info["run_id"]
+            run_id = caller_info["run_id"] # TODO: correct run_id
         else:
             run_id = None
 
@@ -114,30 +115,41 @@ class PoliBaseMlFlowObserver(AbstractObserver):
         mlflow.log_param(ALGORITHM, caller_info.get(ALGORITHM))
         mlflow.log_param(STARTING_N, caller_info.get(STARTING_N))
         mlflow.log_param(BATCH_SIZE, caller_info.get(BATCH_SIZE))
+        # compute and set initial front:
+        self._add_initial_observations(x0, y0)
         # for completeness log and write to np array later
         self.initial_values.append(y0)
         self.initial_sequences.append(x0)
 
-    def observe(self, x: np.ndarray, y: np.ndarray, context=None) -> None:
-        mlflow.log_metric("y", y, step=self.step)
-        self.sequences.append(x)
-        self.values.append(y[0, :])
+    def __add_to_additional_metrics(self, k: str, v: list) -> None:
+        if k not in self.additional_metrics:
+            self.additional_metrics[k] = []
+        self.additional_metrics[k].append(v)
 
-        if context is not None:
+    def observe(self, x: np.ndarray, y: np.ndarray, context=None) -> None:
+        if context is not None: # log model parameters if context is given
             for key, value in context.items():
-                mlflow.log_metric(key, value, step=self.step)
-        elif context is None or True:
-            log({BLACKBOX + str(i): y[0, i] for i in range(y.shape[1])}, step=self.step)
-            ymat = np.array(self.values)
-            mins = np.min(ymat, axis=0)
-            assert(mins.shape[0] == y.shape[1])
-            log({MIN_BLACKBOX + str(i): mins[i] for i in range(y.shape[1])}, step=self.step)
-            if self.transformed_pareto_volume_ref_point is not None and y.shape[1] > 1:
-                new_volume = self._compute_hyper_volume(ymat)
-                log({ABS_HYPER_VOLUME: new_volume, 
-                    REL_HYPER_VOLUME: new_volume / self.initial_pareto_front_volume},
-                    step=self.step)
-            # TODO: observe model parameters also
+                if isinstance(value, list) or isinstance(value, np.array):
+                    if len(np.atleast_1d(value[0])) > 1: # if metric is a vector/matrix, add all to artifacts
+                        self.__add_to_additional_metrics(key, value)
+                        continue
+                    for idx, val in enumerate(value): # if sufficient size, add to metrics
+                        mlflow.log_metric(f"{key}_{idx}", val, step=self.step)
+                else:
+                    mlflow.log_metric(key, value, step=self.step)
+        self.values.append(y)
+        self.sequences.append(x)
+        
+        log({f"{BLACKBOX}_{i}": float(y[:, i]) for i in range(y.shape[1])}, step=self.step)
+        ymat = np.array(self.values)
+        mins = np.min(ymat, axis=0) 
+        assert(mins.shape[1] == y.shape[1]), "Mismatch min dimensions and observations!"
+        log({f"{MIN_BLACKBOX}_{i}": float(mins[:,i]) for i in range(y.shape[1])}, step=self.step)
+        if self.transformed_pareto_volume_ref_point is not None and y.shape[1] > 1:
+            new_volume = self._compute_hyper_volume(ymat)
+            log({ABS_HYPER_VOLUME: new_volume, 
+                REL_HYPER_VOLUME: new_volume / self.initial_pareto_front_volume},
+                step=self.step)
         self.step += 1
 
     def _add_initial_observations(self, x0, y0):
@@ -175,6 +187,7 @@ class PoliBaseMlFlowObserver(AbstractObserver):
             with open(self.tracking_uri / "sequences_observations.npz", "wb") as f:
                 np.savez(f, x=sequences, x0=init_sequences, y=obs, y0=init_obs)
             mlflow.log_artifact(self.tracking_uri / "sequences.npz")
+            mlflow.log_dict(self.additional_metrics, "additional_metrics.json")
         else:
             raise FileNotFoundError(f"Could not persist files! {self.tracking_uri}")
         mlflow.end_run()
