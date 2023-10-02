@@ -12,6 +12,7 @@ To check its results, you will need to start a ui:
 """
 
 from pathlib import Path
+import logging
 from typing import Tuple
 import mlflow
 import numpy as np
@@ -56,7 +57,10 @@ def get_pareto_reference_point(y0: np.ndarray) -> Tuple[torch.Tensor, Normalizer
 class PoliBaseMlFlowObserver(AbstractObserver):
     def __init__(self, tracking_uri: Path=None) -> None:
         self.step = 0
-        self.tracking_uri = Path(corel.__file__).parent.parent.parent.resolve() / "results" / "mlruns" # tracking_uri
+        self.tracking_uri = "file:/Users/rcml/corel/results/mlruns/" if tracking_uri is None else tracking_uri #Path(corel.__file__).parent.parent.parent.resolve() / "results" # tracking_uri
+        logging.info(f"Setting MlFlow tracking = {self.tracking_uri}")
+        self.initial_values = []
+        self.initial_sequences = []
         self.values = []
         self.sequences = []
         self.info = None
@@ -102,12 +106,17 @@ class PoliBaseMlFlowObserver(AbstractObserver):
             }
         )
 
-        mlflow.log_param("x0", x0)
-        mlflow.log_param("y0", y0)
+        # due to Mlflow constraints only log initial 10 values:
+        for i, _x in enumerate(x0[:10]):
+            mlflow.log_param(f"x0_{i}", "".join(_x)) # can only write string for one X, numpy array/string length length exceeds limit
+        mlflow.log_param("y0", y0[:10])
         mlflow.log_param("seed", seed)
         mlflow.log_param(ALGORITHM, caller_info.get(ALGORITHM))
         mlflow.log_param(STARTING_N, caller_info.get(STARTING_N))
         mlflow.log_param(BATCH_SIZE, caller_info.get(BATCH_SIZE))
+        # for completeness log and write to np array later
+        self.initial_values.append(y0)
+        self.initial_sequences.append(x0)
 
     def observe(self, x: np.ndarray, y: np.ndarray, context=None) -> None:
         mlflow.log_metric("y", y, step=self.step)
@@ -128,6 +137,7 @@ class PoliBaseMlFlowObserver(AbstractObserver):
                 log({ABS_HYPER_VOLUME: new_volume, 
                     REL_HYPER_VOLUME: new_volume / self.initial_pareto_front_volume},
                     step=self.step)
+            # TODO: observe model parameters also
         self.step += 1
 
     def _add_initial_observations(self, x0, y0):
@@ -157,10 +167,16 @@ class PoliBaseMlFlowObserver(AbstractObserver):
         return Hypervolume(-self.transformed_pareto_volume_ref_point).compute(torch.tensor(-norm_pareto_targets))
 
     def finish(self) -> None:
+        sequences = np.array(self.sequences)
+        init_sequences = np.array(self.initial_sequences)
+        obs = np.array(self.values)
+        init_obs = np.array(self.initial_values)
         if isinstance(self.tracking_uri, Path):
-            with open(self.tracking_uri / "sequences.npy", "wb") as f:
-                np.save(f, self.sequences)
-            mlflow.log_artifact(self.tracking_uri / "sequences.npy")
+            with open(self.tracking_uri / "sequences_observations.npz", "wb") as f:
+                np.savez(f, x=sequences, x0=init_sequences, y=obs, y0=init_obs)
+            mlflow.log_artifact(self.tracking_uri / "sequences.npz")
+        else:
+            raise FileNotFoundError(f"Could not persist files! {self.tracking_uri}")
         mlflow.end_run()
 
 
