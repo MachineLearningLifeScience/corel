@@ -6,7 +6,7 @@ import json
 import pandas as pd
 import matplotlib.pyplot as plt
 
-import selfies
+import selfies as sf
 
 if __name__ == "__main__":
     ROOT_DIR = Path(__file__).parent.parent.parent.parent.resolve()
@@ -21,7 +21,7 @@ if __name__ == "__main__":
     df = pd.read_csv(filepath, index_col=False)
 
     # We compute the alphabet
-    token_lists = df["SELFIES"].apply(lambda x: list(selfies.split_selfies(x)))
+    token_lists = df["SELFIES"].apply(lambda x: list(sf.split_selfies(x)))
 
     # For a small analysis, we plot the distribution of the number of tokens per SELFIES
     # Computing the sequence lengths, and saving

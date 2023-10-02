@@ -6,9 +6,6 @@ molecules in the ZINC dataset to SELFIES.
 """
 import pickle
 from pathlib import Path
-from multiprocessing import Pool, cpu_count
-
-import pandas as pd
 
 from poli.core.util.chemistry.string_to_molecule import translate_smiles_to_selfies
 
@@ -16,20 +13,20 @@ if __name__ == "__main__":
     # We get the path to the ZINC dataset
     ROOT_DIR = Path(__file__).parent.parent.parent.parent.resolve()
     ASSETS_DIR = ROOT_DIR / "experiments" / "assets" / "data" / "small_molecules"
-    SAVED_DATASET_PATH = ASSETS_DIR /  "raw" / "zinc250k.pkl"
-    
-    assert SAVED_DATASET_PATH.exists(), (
-        "The ZINC dataset was not found. Please run the script at ./00_downloading_the_dataset.py first."
-    )
-    
+    SAVED_DATASET_PATH = ASSETS_DIR / "raw" / "zinc250k.pkl"
+
+    assert (
+        SAVED_DATASET_PATH.exists()
+    ), "The ZINC dataset was not found. Please run the script at ./00_downloading_the_dataset.py first."
+
     # We define the path to the transformed dataset
-    TRANSFORMED_DATASET_DIR = ASSETS_DIR / "processed" 
+    TRANSFORMED_DATASET_DIR = ASSETS_DIR / "processed"
     TRANSFORMED_DATASET_DIR.mkdir(parents=True, exist_ok=True)
 
     # We load the dataset
     with open(ASSETS_DIR / SAVED_DATASET_PATH, "rb") as fin:
         zinc250k = pickle.load(fin)
-    
+
     # We transform the dataset
     zinc250k = [molecule.to_smiles() for molecule in zinc250k.data]
 

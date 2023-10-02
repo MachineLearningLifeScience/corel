@@ -1,10 +1,18 @@
 # Preprocessing for small molecules
 
+## Some dependencies
+
+**You will need to install TorchDrug**, which is a little bit picky. [Check this documentation](https://torchdrug.ai/docs/installation.html#installation).
+
+These are other dependencies:
+```bash
+pip install rdkit selfies pandas matplotlib
+```
+
 ## Downloading the dataset
 
 We use TorchDrug to download the dataset (see e.g. [this tutorial](https://torchdrug.ai/docs/tutorials/generation.html#prepare-the-pretraining-dataset)).
 
-You will need to install TorchDrug, which is a little bit picky. [Check this documentation](https://torchdrug.ai/docs/installation.html#installation).
 
 ## Casting to `selfies`
 
