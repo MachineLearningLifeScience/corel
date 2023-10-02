@@ -148,3 +148,17 @@ class ProteinModel(TrainableProbabilisticModel):
         print("noises: " + str([np.exp(self.log_noises[i].numpy()) for i in range(num_tasks)]))
         self.alphas = [tf.linalg.triangular_solve(self.Ls[i], dataset.observations[:, i:i+1] - self.kernel_means[i], lower=True) for i in range(num_tasks)]
 
+    def get_context(self) -> dict:
+        """
+        Provides context for logging hyperparameters.
+        """
+        num_tasks = self.dataset.observations.shape[1]
+        context = dict(
+            alphas=[_a.numpy() for _a in self.alphas],
+            len_scales=[np.exp(self.log_length_scales[i].numpy()) for i in range(num_tasks)],
+            amplitudes=[_a.numpy() for _a in self.amplitudes.values()],
+            kernel_mu=[_ker_m.numpy() for _ker_m in self.kernel_means.values()],
+            noises=[np.exp(self.log_noises[i].numpy()) for i in range(num_tasks)],
+        )
+        return context
+
