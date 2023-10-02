@@ -19,6 +19,7 @@ from poli import objective_factory
 from poli.core.registry import set_observer
 from poli.core.problem_setup_information import ProblemSetupInformation
 from poli.core.util.external_observer import ExternalObserver
+from corel.observers.poli_base_logger import PoliBaseMlFlowObserver
 from corel.optimization.lambo_optimizer import make_lambo_optimizer
 from corel.protein_model import ProteinModel
 
@@ -100,17 +101,18 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
     elif problem == 'foldx_stability_and_sasa':
         if not data_path:
             raise ValueError("Please provide location of PDB files!")
-        assets_pdb_paths = list(Path(data_path).glob("*/wt_input_Repair.pdb"))
+        assets_pdb_paths = list(Path(data_path).glob("*/wt_input_Repair.pdb"))[:16] # TODO: for debugging only: FIXME
+        observer = PoliBaseMlFlowObserver("file:/Users/rcml/corel/results/mlruns/")
         problem_info, _f, _x0, _y0, run_info = objective_factory.create(
             name=problem,
             seed=seed,
             caller_info=caller_info,
             wildtype_pdb_path=assets_pdb_paths,
-            observer=ExternalObserver(observer_name="PoliBaseMlFlowObserver"), # NOTE: for general reference and comparability this should be a base logger
+            observer=observer, # NOTE: for general reference and comparability this should be a base logger
             force_register=True,
             parallelize=True,
             num_workers=4,
-            batch_size=batch,
+            batch_size=batch, # TODO: mutliple elements should be supported here!
         )
     else:
         raise NotImplementedError
@@ -119,8 +121,10 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
     y0 = _y0[:n_allowed_observations]
 
     L = problem_info.get_max_sequence_length()
+    if L == np.inf:
+        L = max(len(_x) for _x in _x0) + 25 # make length value deterministic if ill-defined
     AA = len(problem_info.get_alphabet())
-    if not problem_info.sequences_are_aligned():
+    if not problem_info.sequences_are_aligned() or problem == 'foldx_stability_and_sasa': # NOTE: RFP also requires padding token
         AA += 1 # account for padding token
 
     aa_int_mapping = get_amino_acid_integer_mapping_from_info(problem_info)
@@ -133,6 +137,8 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
             "".join([aa_mapping[_x[n, i]] for i in range(x.shape[1]) if x[n,i] != PADDING_SYMBOL_INDEX]) 
                 for n in range(x.shape[0])]
         )
+        seqs = np.atleast_1d(seqs)
+        # TODO: add model parameters as context to be tracked by observer here?
         return tf.constant(f(seqs, context))
 
     X_train = transform_string_sequences_to_integer_arrays(_x0, L, aa_int_mapping)
