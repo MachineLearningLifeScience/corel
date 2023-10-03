@@ -89,6 +89,7 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
         MODEL: p_factory.__class__.__name__,
         ALGORITHM: "COREL",
     }
+    observer = None
     if problem == 'foldx_rfp_lambo':
         problem_info, _f, _x0, _y0, run_info = objective_factory.create(
             name=problem,
@@ -101,7 +102,10 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
     elif problem == 'foldx_stability_and_sasa':
         if not data_path:
             raise ValueError("Please provide location of PDB files!")
-        assets_pdb_paths = list(Path(data_path).glob("*/wt_input_Repair.pdb"))[:16] # TODO: for debugging only: FIXME
+        assets_pdb_paths = list(Path(data_path).glob("*/wt_input_Repair.pdb"))
+        if n_allowed_observations > len(assets_pdb_paths): 
+            # if there is less data available than allowed, set this as starting number
+            caller_info[STARTING_N] = len(assets_pdb_paths)
         observer = PoliBaseMlFlowObserver("file:/Users/rcml/corel/results/mlruns/")
         problem_info, _f, _x0, _y0, run_info = objective_factory.create(
             name=problem,
@@ -131,14 +135,19 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
     int_aa_mapping = {aa_int_mapping[a]: a for a in aa_int_mapping.keys()}
     assert PADDING_SYMBOL_INDEX not in aa_int_mapping.values() # TODO: why?
 
-    def f_wrapper(x, f=_f, aa_mapping: dict=int_aa_mapping, context=None):
+    weighting = p_factory.create(problem_info)
+    model = ProteinModel(weighting, AA)
+
+    def f_wrapper(x, f=_f, aa_mapping: dict=int_aa_mapping, model=model, context=None):
         _x = x.numpy()
         seqs = np.array([
             "".join([aa_mapping[_x[n, i]] for i in range(x.shape[1]) if x[n,i] != PADDING_SYMBOL_INDEX]) 
                 for n in range(x.shape[0])]
         )
         seqs = np.atleast_1d(seqs)
-        # TODO: add model parameters as context to be tracked by observer here?
+        # log model parameters as metrics via a context
+        if hasattr(model, 'get_context') and callable(model.get_context):
+            context = model.get_context()
         return tf.constant(f(seqs, context))
 
     X_train = transform_string_sequences_to_integer_arrays(_x0, L, aa_int_mapping)
@@ -153,10 +162,10 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
             optimizer=optimizer_factory(batch_evaluations=batch),
             builder=ei,
             num_query_points=batch)
-    weighting = p_factory.create(problem_info)
-    model = ProteinModel(weighting, AA)
     bo = BayesianOptimizer(tr_observer, search_space)
     result = bo.optimize(num_steps=budget, datasets=dataset_t0, models=model, acquisition_rule=rule)
+    if observer is not None:
+        observer.finish()
     return result
 
 
