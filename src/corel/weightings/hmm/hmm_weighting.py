@@ -18,6 +18,9 @@ class HMMWeighting(AbstractWeighting):
 
     def expectation(self, p):
         # this implementation currently only supports atomic p
+        # TODO: actually it's not that hard, this requires only something similar to a backward pass
+        # question is more how to do it in a numerically stable fashion
+        # or if it remains auto differentiable
 
         if not p.dtype.is_integer:
             # bug in tensorflow: 0^0=1. Well, good for me...
@@ -40,3 +43,19 @@ class HMMWeighting(AbstractWeighting):
             _, c = forward(self.s0, self.T, self.em, seq_to_int)
             e[i] = np.prod(c)
         return tf.constant(e)
+
+    def _expectation(self, p):
+        assert(p.shape[1] == self.em.shape[1])
+        temp_old = np.ones(self.T.shape[0])
+        temp_new = np.zeros_like(temp_old)
+        for l in range(p.shape[0] - 1, 0, -1):
+            for s_ in range(self.T.shape[0]):
+                for s in range(self.T.shape[0]):
+                    temp_new[s_] += np.sum(p[l, :] * self.em[s, :]) * self.T[s_, s] * temp_old[s_]
+            temp_old[:] = temp_new[:]
+            temp_new[:] = 0.
+
+        for s in range(self.T.shape[0]):
+            temp_new[s] += np.sum(p[0, :] * self.em[s, :]) * temp_old[s]
+
+        return np.sum(self.s0.flatten() * temp_new)
