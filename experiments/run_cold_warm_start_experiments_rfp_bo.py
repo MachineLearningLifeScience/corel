@@ -44,6 +44,8 @@ problem_model_mapping = { # TODO: these filenames should come from a config and 
     }
 }
 
+TRACKING_URI = "file:/Users/rcml/corel/results/mlruns/"
+
 AVAILABLE_WEIGHTINGS = [HMMFactory, VAEFactory]
 # number of available observation from cold (0.) to warm (250+) start
 AVAILABLE_SEQUENCES_N = [1, 16, 512]
@@ -91,11 +93,13 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
     }
     observer = None
     if problem == 'foldx_rfp_lambo':
+        from corel.observers.poli_lambo_logger import PoliLamboLogger
+        observer = PoliLamboLogger(TRACKING_URI)
         problem_info, _f, _x0, _y0, run_info = objective_factory.create(
             name=problem,
             seed=seed,
             caller_info=caller_info,
-            observer=ExternalObserver(observer_name="PoliLamboLogger"), # NOTE: This has to be the lambo specific logger
+            observer=observer, # NOTE: This has to be the lambo specific logger
             force_register=True,
             parallelize=False, # NOTE: unaligned problem and setup DO NOT allow parallelization
         )
@@ -106,7 +110,7 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
         if n_allowed_observations > len(assets_pdb_paths): 
             # if there is less data available than allowed, set this as starting number
             caller_info[STARTING_N] = len(assets_pdb_paths)
-        observer = PoliBaseMlFlowObserver("file:/Users/rcml/corel/results/mlruns/")
+        observer = PoliBaseMlFlowObserver(TRACKING_URI)
         problem_info, _f, _x0, _y0, run_info = objective_factory.create(
             name=problem,
             seed=seed,
@@ -126,7 +130,7 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
 
     L = problem_info.get_max_sequence_length()
     if L == np.inf:
-        L = max(len(_x) for _x in _x0) + 25 # make length value deterministic if ill-defined
+        L = max(len(_x) for _x in _x0) + 25 # make length value deterministic if ill-defined # NOTE: in base RFP L=425
     AA = len(problem_info.get_alphabet())
     if not problem_info.sequences_are_aligned() or problem == 'foldx_stability_and_sasa': # NOTE: RFP also requires padding token
         AA += 1 # account for padding token
