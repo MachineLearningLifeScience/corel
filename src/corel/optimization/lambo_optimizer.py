@@ -55,8 +55,8 @@ def make_lambo_optimizer(dataset=None, batch_evaluations=1):
         _, idx_ = non_dominated(observations_handle(acquisition_function))
         proposal_seqs = inputs_handle(acquisition_function)[idx_]
         selected_seqs = []
-        for round, i in enumerate(np.random.randint(0, proposal_seqs.shape[0], batch_evaluations)):
-            print("mutating candidate " + str(round+1) + " of " + str(batch_evaluations))
+        for _round, i in enumerate(np.random.randint(0, proposal_seqs.shape[0], batch_evaluations)):
+            print("mutating candidate " + str(_round+1) + " of " + str(batch_evaluations))
             t = time.time()
             best = mutate_candidate(proposal_seqs[i:i+1, ...], acquisition_function)
             selected_seqs.append(best)

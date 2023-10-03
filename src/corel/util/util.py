@@ -23,7 +23,7 @@ def transform_string_sequences_to_integer_arrays(train_x_, L, amino_acid_integer
     for i in range(len(train_x_)):
         seq = train_x_[i]
         len_seq = len(seq)
-        train_x[i, :len_seq] = np.array([amino_acid_integer_mapping[a] for a in seq])
+        train_x[i, :len_seq] = np.array([amino_acid_integer_mapping.get(a, PADDING_SYMBOL_INDEX) for a in seq]) # element '' not in alphabet and defaults to PADDING
         train_x[i, len_seq:] = PADDING_SYMBOL_INDEX
     return tf.constant(train_x)
 
