@@ -38,8 +38,9 @@ def get_pareto_reference_point(y0: np.ndarray) -> Tuple[torch.Tensor, Normalizer
     
 
 class PoliLamboLogger(AbstractObserver): 
-    def __init__(self):
+    def __init__(self, tracking_uri: Path=None):
         self.info: ProblemSetupInformation = None
+        self.tracking_uri = tracking_uri if tracking_uri is None else tracking_uri
         self.step = 1
         self.sequences = []
         self.vals = []
