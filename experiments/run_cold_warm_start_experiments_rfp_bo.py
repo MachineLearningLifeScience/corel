@@ -101,7 +101,7 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
             caller_info=caller_info,
             observer=observer, # NOTE: This has to be the lambo specific logger
             force_register=True,
-            parallelize=False, # NOTE: unaligned problem and setup DO NOT allow parallelization
+            parallelize=False, # NOTE: current setup DO NOT allow parallelization
         )
     elif problem == 'foldx_stability_and_sasa':
         if not data_path:
@@ -142,17 +142,29 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
     weighting = p_factory.create(problem_info)
     model = ProteinModel(weighting, AA)
 
-    def f_wrapper(x, f=_f, aa_mapping: dict=int_aa_mapping, model=model, context=None):
+    def f_wrapper(x, f=_f, aa_mapping: dict=int_aa_mapping, model=model, context=None, problem=problem):
         _x = x.numpy()
-        seqs = np.array([
+        # convert int tensor to AA strings
+        sequences = np.array([
             "".join([aa_mapping[_x[n, i]] for i in range(x.shape[1]) if x[n,i] != PADDING_SYMBOL_INDEX]) 
                 for n in range(x.shape[0])]
         )
-        seqs = np.atleast_1d(seqs)
         # log model parameters as metrics via a context
         if hasattr(model, 'get_context') and callable(model.get_context):
             context = model.get_context()
-        return tf.constant(f(seqs, context))
+        if problem == 'foldx_rfp_lambo': # requires individual function calls
+            # the proposal sequences are not all alignable: treat them individually
+            f_batch = []
+            for _seq in sequences:
+                seq_arr = np.atleast_2d(list(_seq)) # poli black-box requires a 2d input
+                f_batch.append(f(seq_arr, context))
+            f_batch = np.concatenate(f_batch, axis=0)
+        else:
+            max_len = max(len(_s) for _s in sequences)
+            # add empty padding, to enable batched foldx call
+            pad_seqs = np.array([list(_s) + (max_len-len(_s))*[""] for _s in sequences])
+            f_batch = f(pad_seqs, context) # batched calls
+        return tf.constant(f_batch)
 
     X_train = transform_string_sequences_to_integer_arrays(_x0, L, aa_int_mapping)
     aa_space = DiscreteSearchSpace(tf.expand_dims(tf.range(AA), axis=-1))
