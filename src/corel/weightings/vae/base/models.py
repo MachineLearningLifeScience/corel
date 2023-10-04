@@ -4,7 +4,7 @@ from typing import Any
 import tensorflow.compat.v2 as tf
 tf.enable_v2_behavior()
 
-import tensorflow_datasets as tfds
+# import tensorflow_datasets as tfds
 import tensorflow_probability as tfp
 
 from corel.weightings.vae.base import LATENT_DIM, DECODER_LAYERS, ENCODER_LAYERS, DROPOUT_RATE, KL_WEIGHT, PRIOR_SCALE, OFFDIAG
