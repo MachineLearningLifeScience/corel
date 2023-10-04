@@ -49,7 +49,7 @@ def get_pareto_reference_point(y0: np.ndarray) -> Tuple[torch.Tensor, Normalizer
     )
     transform = hypercube_transform
     idx = is_non_dominated(-torch.tensor(y0))
-    norm_pareto_targets = hypercube_transform(y0[idx, ...])
+    norm_pareto_targets = hypercube_transform(y0[idx.numpy(), ...])
     normed_ref_point = -infer_reference_point(-torch.tensor(norm_pareto_targets)).numpy()
     return normed_ref_point, transform
 
