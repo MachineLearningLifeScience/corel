@@ -51,7 +51,7 @@ class HMMWeighting(AbstractWeighting):
         for l in range(p.shape[0] - 1, 0, -1):
             for s_ in range(self.T.shape[0]):
                 for s in range(self.T.shape[0]):
-                    temp_new[s_] += np.sum(p[l, :] * self.em[s, :]) * self.T[s_, s] * temp_old[s_]
+                    temp_new[s_] += np.sum(p[l, :] * self.em[s, :]) * self.T[s_, s] * temp_old[s]
             temp_old[:] = temp_new[:]
             temp_new[:] = 0.
 

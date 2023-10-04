@@ -10,7 +10,7 @@ from corel.weightings.hmm.hmm_weighting import HMMWeighting
 
 class TestHMMweighting(unittest.TestCase):
     def test_expectation(self):
-        L = 3
+        L = 4
         hmm = TestHMMImplementation()
         p = np.square(np.random.randn(L, hmm.em.shape[1]))
         p /= np.sum(p, axis=-1)[:, None]
@@ -22,7 +22,7 @@ class TestHMMweighting(unittest.TestCase):
         self.assertAlmostEqual(np.log(e), np.log(e_))
 
     def test_expectation_wrt_atoms(self):
-        L = 3
+        L = 4
         hmm = TestHMMImplementation()
         x = np.random.randint(0, hmm.em.shape[1], L)
         p = np.zeros([L, hmm.em.shape[1]])
