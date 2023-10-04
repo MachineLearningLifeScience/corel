@@ -38,7 +38,6 @@ problem_model_mapping = { # TODO: these filenames should come from a config and 
         "hmm": "./experiments/assets/hmms/rfp.hmm", # TODO: make this relative filenmae
         "vae": "./results/models/vae_z_2_rfp_fam.ckpt"
         },
-    "rank_gfp": {}, # TODO: implement
     "foldx_stability_and_sasa":{
         "hmm": "./experiments/assets/hmms/rfp.hmm"
     }
@@ -107,6 +106,8 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
         if not data_path:
             raise ValueError("Please provide location of PDB files!")
         assets_pdb_paths = list(Path(data_path).glob("*/wt_input_Repair.pdb"))
+        if n_allowed_observations == 1: # cold-start problem: optimize w.r.t. 1 protein specifically
+            assets_pdb_paths = [Path(data_path) / "1zgo_A" / "wt_input_Repair.pdb"] # pick DsRed specifically.
         if n_allowed_observations > len(assets_pdb_paths): 
             # if there is less data available than allowed, set this as starting number
             caller_info[STARTING_N] = len(assets_pdb_paths)
