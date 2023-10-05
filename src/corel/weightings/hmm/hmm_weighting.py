@@ -15,7 +15,8 @@ class HMMWeighting(AbstractWeighting):
         self.s0, self.T, self.em, extra_info_dict = load_hmm(hmm)
         hmm_alphabet = hmm.metadata.alphabet
         self.index_map = {amino_acid_integer_mapping[hmm_alphabet[i]]: i for i in range(len(hmm_alphabet))}
-        self.index_permutation = [self.index_map[i] for i in np.sort(list(self.index_map.keys()))]
+        #self.index_permutation = [self.index_map[i] for i in np.sort(list(self.index_map.keys()))]
+        self.index_permutation = np.array(list(amino_acid_integer_mapping[hmm_alphabet[i]] for i in range(len(hmm_alphabet))))
 
     def expectation(self, p):
         p_is_atomic = True
@@ -42,13 +43,37 @@ class HMMWeighting(AbstractWeighting):
                 _, c = forward(self.s0, self.T, self.em, seq_to_int)
                 e[i] = np.prod(c)
             else:
-                assert p.shape[1] == self.em.shape[1], \
-                    (f"Input distribution is over {p.shape[1]} elements whereas the HMM is over {self.em.shape[1]}. "
-                     f"Did you maybe forget to take care of a padding symbol?")
-                e[i] = self._expectation(p[i, :, self.index_permutation])
+                # The permutation should take care of the padding symbol.
+                # Particularly, if the problem is unaligned: p.shape[1] - 1 == self.em.shape[1]
+                # assert p.shape[1] == self.em.shape[1], \
+                #     (f"Input distribution is over {p.shape[1]} elements whereas the HMM is over {self.em.shape[1]}. "
+                #      f"Did you maybe forget to take care of a padding symbol?")
+                p_ = p.numpy()[i, :, self.index_permutation].transpose()  # for some reason numpy swaps the dimensions with this operation!
+                e[i] = self._expectation(p_)
         return tf.constant(e)
 
-    def _expectation(self, p):
+    def _expectation(self, p: np.ndarray):
+        return self._expectation_ref(p)
+        # TODO:  implement more efficiently
+        # assert p.shape[1] == self.em.shape[1], \
+        #     (f"Input distribution is over {p.shape[1]} elements whereas the HMM is over {self.em.shape[1]}. "
+        #      f"Did you maybe forget to take care of a padding symbol?")
+        temp_old = np.ones([self.T.shape[0], 1])
+        temp_new = np.zeros_like(temp_old)
+        for l in range(p.shape[0] - 1, 0, -1):
+            for s_ in range(self.T.shape[0]):
+                #for s in range(self.T.shape[0]):
+                temp_new = np.sum(p[l, :] * self.em[s, :]) * self.T[s_, :] @ temp_old
+            temp_old[:] = temp_new[:]
+            temp_new[:] = 0.
+
+        for s in range(self.T.shape[0]):
+            temp_new[s] += np.sum(p[0, :] * self.em[s, :]) * temp_old[s]
+
+        return np.sum(self.s0.flatten() * temp_new)
+
+
+    def _expectation_ref(self, p: np.ndarray):
         # assert p.shape[1] == self.em.shape[1], \
         #     (f"Input distribution is over {p.shape[1]} elements whereas the HMM is over {self.em.shape[1]}. "
         #      f"Did you maybe forget to take care of a padding symbol?")
