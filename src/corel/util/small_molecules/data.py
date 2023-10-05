@@ -1,4 +1,5 @@
 """Utilities for loading the dataset, and manipulating the small molecules data."""
+from typing import Dict
 from pathlib import Path
 import json
 
@@ -26,6 +27,26 @@ def load_zinc_250k_dataset() -> np.ndarray:
     )
 
     return np.load(dataset_path)["onehot"]
+
+
+def load_zinc_250k_alphabet() -> Dict[str, int]:
+    """
+    Returns the alphabet (dict[str, int]) of SELFIES characters.
+    """
+    alphabet_path = (
+        ROOT_DIR
+        / "experiments"
+        / "assets"
+        / "data"
+        / "small_molecules"
+        / "processed"
+        / "alphabet_stoi.json"
+    )
+
+    with open(alphabet_path, "r") as f:
+        alphabet = json.load(f)
+
+    return alphabet
 
 
 if __name__ == "__main__":

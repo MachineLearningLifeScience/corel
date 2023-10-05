@@ -1,13 +1,18 @@
-import tensorflow as tf
 from warnings import warn
 import os
 from pathlib import Path
+
+import numpy as np
+import tensorflow as tf
 
 from corel.util.small_molecules.data import load_zinc_250k_dataset
 from corel.weightings.vae.small_molecules.vae_selfies import VAESelfies
 from corel.weightings.vae.base import LATENT_DIM
 
-tf.config.run_functions_eagerly(True)
+# tf.config.run_functions_eagerly(True)
+
+ENCODING_LAYERS = [1024, 512, 256, 128]
+DECODING_LAYERS = [128, 256, 512, 1024]
 
 
 def _preprocess(x):
@@ -15,14 +20,14 @@ def _preprocess(x):
     The model is expecting flat one-hot inputs, and
     integer labels as outp.
     """
-    return x, tf.math.argmax(x, axis=-1)
+    return x, x
 
 
 if __name__ == "__main__":
     # Defining some hyperparameters
-    BATCHSIZE = 200  # 128
-    EPOCHS = 100  # RFP=1000 BLAT = 100
-    SEED = 42
+    BATCHSIZE = 256  # 128
+    EPOCHS = 300  # RFP=1000 BLAT = 100
+    SEED = np.random.randint(100)
     LR = 1e-3
     cpu = False
 
@@ -30,13 +35,16 @@ if __name__ == "__main__":
     all_onehot_arrays = load_zinc_250k_dataset()
     dataset_size, sequence_length, n_categories = all_onehot_arrays.shape
     all_onehot_arrays = tf.constant(
-        all_onehot_arrays.reshape(dataset_size, sequence_length * n_categories),
+        all_onehot_arrays,
         dtype=tf.float32,
         name="all_onehot_arrays",
     )
 
     # Shuffling before splitting
     all_onehot_arrays = tf.random.shuffle(all_onehot_arrays, seed=SEED)
+
+    # TEST: let's see if we can overfit to a couple of batches
+    all_onehot_arrays = all_onehot_arrays[:2 * BATCHSIZE]
 
     # Splitting into train and test (80/20)
     train_size = int(0.8 * len(all_onehot_arrays))
@@ -61,8 +69,10 @@ if __name__ == "__main__":
 
     vae = VAESelfies(
         z_dim=LATENT_DIM,
-        input_dims=(sequence_length * n_categories),
+        input_dims=(sequence_length, n_categories),
         n_categories=n_categories,
+        encoder_layers=ENCODING_LAYERS,
+        decoder_layers=DECODING_LAYERS,
     )
 
     if cpu:  # NOTE: M1/M2 processors require legacy Adam

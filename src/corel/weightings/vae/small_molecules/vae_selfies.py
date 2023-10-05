@@ -3,8 +3,7 @@
 Using the ZINC250k dataset, we train a Variational Autoencoder
 that decodes to a categorical distribution.
 """
-from typing import List
-from typing import Any
+from typing import List, Tuple
 
 import tensorflow as tf
 import tensorflow_probability as tfp
@@ -18,7 +17,6 @@ from corel.weightings.vae.base import (
     PRIOR_SCALE,
     OFFDIAG,
 )
-from corel.weightings.vae.base.models import Encoder, Decoder
 
 tfk = tf.keras
 tfkl = tf.keras.layers
@@ -26,14 +24,14 @@ tfpl = tfp.layers
 tfd = tfp.distributions
 
 
-class Encoder:
+class EncoderSelfies:
     """A variational encoder that encodes to a Gaussian distribution."""
 
     def __init__(
         self,
         z_dim: int,
         hidden_dims: List[int],
-        input_dims: int,
+        input_dims: Tuple[int, int],
         n_categories: int,
         prior,
         offdiag=False,
@@ -41,14 +39,14 @@ class Encoder:
         # Size of the latent space
         self.z_dim = z_dim
 
-        # Assuming input_dims == n_categories * sequence_length
+        # Assuming input_dims = [sequence_length, n_categories]
         self.input_dims = input_dims
 
         # Number of categories
         self.n_categories = n_categories
 
         # Sequence length, taken from the assumption about input_dims
-        self.sequence_length = input_dims // n_categories
+        self.sequence_length = self.input_dims[0]
 
         # The dense layers
         dense_layers = [
@@ -63,26 +61,31 @@ class Encoder:
                 tfpl.MultivariateNormalTriL(
                     z_dim,
                     activity_regularizer=tfpl.KLDivergenceRegularizer(
-                        prior, use_exact_kl=True
-                    )
-                    # , weight=KL_WEIGHT)
+                        prior,
+                        use_exact_kl=True,
+                        weight=0.01,
+                    ),
                 ),
             ]
         else:  # distribution should match with prior
-            distribution_layers = [  # NOTE: this can get numerically unstable during inference
-                tfkl.Dense(tfpl.IndependentNormal.params_size(z_dim)),
-                tfpl.IndependentNormal(
-                    event_shape=z_dim,
-                    activity_regularizer=tfpl.KLDivergenceRegularizer(
-                        prior, use_exact_kl=True
-                    )
-                    # , weight=KL_WEIGHT)
-                ),
-            ]
+            distribution_layers = (
+                [  # NOTE: this can get numerically unstable during inference
+                    tfkl.Dense(tfpl.IndependentNormal.params_size(z_dim)),
+                    tfpl.IndependentNormal(
+                        event_shape=z_dim,
+                        activity_regularizer=tfpl.KLDivergenceRegularizer(
+                            prior,
+                            use_exact_kl=True,
+                            weight=0.01,
+                        ),
+                    ),
+                ]
+            )
 
         self.layers = tfk.Sequential(
             [
                 tfkl.InputLayer(input_shape=input_dims),
+                tfkl.Flatten(),
                 *dense_layers,
                 *distribution_layers,
             ]
@@ -96,7 +99,7 @@ class CategoricalDecoder:
         self,
         z_dim: int,
         hidden_dims: List[int],
-        input_dims: int,
+        input_dims: Tuple[int, int],
         n_categories: int,
         dropout: float = DROPOUT_RATE,
     ) -> None:
@@ -113,7 +116,7 @@ class CategoricalDecoder:
         # Size of the latent space
         self.z_dim = z_dim
 
-        # Assuming input_dims == n_categories * sequence_length
+        # Assuming input_dims = [sequence_length, n_categories]
         self.input_dims = input_dims
 
         # Number of categories
@@ -121,7 +124,7 @@ class CategoricalDecoder:
         self.n_classes = n_categories
 
         # Sequence length, taken from the assumption about input_dims
-        self.sequence_length = input_dims // n_categories
+        self.sequence_length = self.input_dims[0]
 
         # The dense layers. We assume that the output
         # are the logits of a categorical distribution
@@ -135,10 +138,10 @@ class CategoricalDecoder:
                 tfkl.InputLayer(input_shape=[z_dim], name="z_to_dense"),
                 # tfkl.Reshape([1, 1, z_dim]),
                 *dense_layers,
-                tfkl.Dropout(dropout, name="dropout"),
-                tfkl.Dense(input_dims, activation=None),
-                tfkl.Reshape([self.sequence_length, n_categories]),
-                tfpl.DistributionLambda(lambda t: tfd.Categorical(logits=t)),
+                # tfkl.Dropout(dropout, name="dropout"),
+                tfkl.Dense(self.sequence_length * self.n_categories, activation=None),
+                tfkl.Reshape([self.sequence_length, self.n_categories]),
+                tfpl.OneHotCategorical(event_size=self.sequence_length),
             ]
         )
 
@@ -170,7 +173,7 @@ class VAESelfies:
             )
 
         # Defining the encoder
-        self.encoder = Encoder(
+        self.encoder = EncoderSelfies(
             z_dim,
             encoder_layers,
             input_dims=input_dims,
@@ -196,14 +199,59 @@ class VAESelfies:
 
 
 if __name__ == "__main__":
+    # When run, this script tests whether the information
+    # is passed correctly through the encoder and decoder.
+    from corel.util.small_molecules.data import load_zinc_250k_dataset
+
+    # Defining hyperparameters
     max_sequence_length = 70
     n_categories = 64
+    offdiag = OFFDIAG
+    z_dim = LATENT_DIM
+
+    # Defining the prior
+    if offdiag:
+        prior = tfd.MultivariateNormalTriL(
+            loc=tf.zeros(z_dim), scale_tril=tf.eye(z_dim)
+        )
+    else:
+        prior = tfd.Independent(
+            tfd.Normal(
+                loc=tf.zeros(z_dim), scale=PRIOR_SCALE
+            ),  # TODO: LaPlace prior instead of Normal prior?
+            reinterpreted_batch_ndims=1,
+        )
+
+    # Testing the encoder
+    encoder = EncoderSelfies(
+        z_dim=2,
+        hidden_dims=[100, 1000],
+        input_dims=(max_sequence_length, n_categories),
+        n_categories=n_categories,
+        prior=prior,
+    )
+
+    # Loading up an example input
+    all_onehot_arrays = load_zinc_250k_dataset()
+    dataset_size, sequence_length, n_categories = all_onehot_arrays.shape
+    all_onehot_arrays = tf.constant(
+        all_onehot_arrays,
+        dtype=tf.float32,
+        name="all_onehot_arrays",
+    )
+    x0 = all_onehot_arrays[:1]
+
+    # Passing the input through the encoder
+    latent_dist = encoder.layers(x0)
+    one_latent_sample = latent_dist.sample()
+    print("Example sample from the latent dist q(z|x): ", one_latent_sample)
 
     decoder = CategoricalDecoder(
         z_dim=2,
         hidden_dims=[100, 1000],
-        input_dims=max_sequence_length * n_categories,
+        input_dims=(max_sequence_length, n_categories),
         n_categories=n_categories,
     )
 
-    print(decoder.layers(tf.random.normal([1, 2])))
+    dist_ = decoder.layers(one_latent_sample)
+    print("Example sample from the conditional dist p(x|z): ", dist_.sample())
