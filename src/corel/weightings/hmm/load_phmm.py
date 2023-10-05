@@ -139,7 +139,7 @@ def load_phmm(model):
     #N = model.metadata.length * 3 + 3  # silent m0, i0 and m->m, m->i, m->d, i->m, i->i, d->m, d->d
     N = model.metadata.length * 3 + 2  # i0, then (i, m, d) * N, finally E
     # the silent starting state m0 is taken care of by s0
-    O = len(model.metadata.alphabet) + 1
+    O = len(model.metadata.alphabet)  # + 1  # no, let's not add a termination symbol
     mapping = model.metadata.alphabet
     #del_sym_pos = 0
     #mapping.insert(del_sym_pos, '-')
@@ -155,7 +155,7 @@ def load_phmm(model):
     s0[3] = model.start_step.p_emission_to_deletion
     np.testing.assert_almost_equal(np.sum(s0), np.ones(1), decimal=5)
     em = np.zeros((N, O))  # ones for the silent states
-    for i in range(O-1):
+    for i in range(O):
         em[0, i] = model.start_step.p_insertion_char[mapping[i]]
     T = np.zeros((N, N))
 
@@ -178,7 +178,7 @@ def load_phmm(model):
 
         T[s*3+3, (s+1)*3+2] = step.p_deletion_to_emission  # d->m+1
         T[s*3+3, (s+1)*3+3] = step.p_deletion_to_deletion  # d->d+1
-        for i in range(O-1):
+        for i in range(O):
             em[s*3+1, i] = step.p_insertion_char[mapping[i]]
             em[s*3+2, i] = step.p_emission_char[mapping[i]]
         #em[s*3+3, del_sym_pos] = 1.
@@ -197,12 +197,12 @@ def load_phmm(model):
     assert(step.p_deletion_to_emission == 1.)
     T[s*3+3, end_state_index] = step.p_deletion_to_emission  # jump to end state
     #T[(s+1)*3+1, (s+1)*3+1] = 1.  # making the E state going to itself?
-    for i in range(O-1):
+    for i in range(O):
         em[s * 3 + 1, i] = step.p_insertion_char[mapping[i]]
         em[s * 3 + 2, i] = step.p_emission_char[mapping[i]]
     #em[s * 3 + 3, del_sym_pos] = 1.
     #em[(s+1)*3+1, del_sym_pos] = 1.  # END state only produces deletion characters?
-    em[end_state_index, -1] = 1.
+    #em[end_state_index, -1] = 1.
     T[end_state_index, end_state_index] = 1.
 
     try:
@@ -211,4 +211,4 @@ def load_phmm(model):
     except Exception as e:
         logging.exception(e)
         raise e
-    return s0, T, em, {ALPHABET_KEY: mapping + [TERMINATION_SYMBOL]}
+    return s0, T, em, {ALPHABET_KEY: mapping}  # + [TERMINATION_SYMBOL]}
