@@ -51,6 +51,7 @@ class ProteinModel(TrainableProbabilisticModel):
         # this implementation assumes that each query point is a distribution
         p_query = tf.reshape(query_points, [query_points.shape[0], query_points.shape[1] // self.AA, self.AA])
         ps = self.distribution(p_query)
+        # qs: probability of the observed sequences under p_query
         qs = np.prod(p_query.numpy()[0, np.arange(p_query.shape[1]), self.dataset.query_points.numpy()], axis=-1)
         qs = tf.constant(qs.reshape([query_points.shape[0], self.dataset.query_points.shape[0]]))
         #qs = tf.reduce_prod(tf.gather(query_points[0, ...], self.dataset.query_points, dim=-1))
