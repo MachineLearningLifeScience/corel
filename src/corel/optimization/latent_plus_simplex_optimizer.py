@@ -5,6 +5,7 @@ import warnings
 import numpy as np
 import tensorflow as tf
 from gpflow import default_float
+from poli.core.problem_setup_information import ProblemSetupInformation
 from trieste.acquisition.optimizer import automatic_optimizer_selector, generate_continuous_optimizer
 from trieste.space import SearchSpaceType, TaggedProductSearchSpace, Box
 
@@ -13,7 +14,7 @@ from corel.weightings.vae.cbas_vae_wrapper import CBASVAEWrapper
 from simplex_optimizer import _make_optimizer as _make_simplex_optimizer
 
 
-def combined_optimizer(search_space: SearchSpaceType, acquisition_function) -> tf.Tensor:
+def combined_optimizer(problem_info: ProblemSetupInformation, search_space: SearchSpaceType, acquisition_function) -> tf.Tensor:
     raise NotImplementedError("get problem quantities")
     L = 237
     AA = 20

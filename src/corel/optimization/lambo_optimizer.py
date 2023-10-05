@@ -5,6 +5,7 @@ import time
 import numpy as np
 import tensorflow as tf
 from gpflow import default_float
+from poli.core.problem_setup_information import ProblemSetupInformation
 from trieste.acquisition.multi_objective import non_dominated
 from trieste.space import SearchSpaceType
 
@@ -40,7 +41,7 @@ def mutate_candidate(seq, acquisition_function, copy=lambda x: x.copy(), trials=
     return bestk.get()[0][0]
 
 
-def make_lambo_optimizer(dataset=None, batch_evaluations=1):
+def make_lambo_optimizer(problem_info: ProblemSetupInformation, dataset=None, batch_evaluations=1):
     if dataset is None:
         # observations_handle = lambda ac: tf.concat([ac._model._models[i].dataset.observations for i in range(len(ac._model._models))], axis=-1)
         # inputs_handle = lambda ac: ac._model._models[0].dataset.query_points

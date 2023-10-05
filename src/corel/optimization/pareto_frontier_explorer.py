@@ -5,6 +5,7 @@ import time
 import numpy as np
 import tensorflow as tf
 from gpflow import default_float
+from poli.core.problem_setup_information import ProblemSetupInformation
 from trieste.acquisition.multi_objective import non_dominated
 from trieste.space import SearchSpaceType
 
@@ -51,7 +52,7 @@ def _position_function(seq: tf.Tensor):
     return np.arange(_padded_until(seq))
 
 
-def make_pareto_frontier_explorer(dataset=None, position_function=_position_function, batch_evaluations=1):
+def make_pareto_frontier_explorer(problem_info: ProblemSetupInformation, dataset=None, position_function=_position_function, batch_evaluations=1):
     if dataset is None:
         # observations_handle = lambda ac: tf.concat([ac._model._models[i].dataset.observations for i in range(len(ac._model._models))], axis=-1)
         # inputs_handle = lambda ac: ac._model._models[0].dataset.query_points

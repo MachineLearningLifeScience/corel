@@ -5,6 +5,7 @@ import warnings
 import numpy as np
 import tensorflow as tf
 from gpflow import default_float
+from poli.core.problem_setup_information import ProblemSetupInformation
 from trieste.acquisition.optimizer import automatic_optimizer_selector, generate_continuous_optimizer
 from trieste.space import SearchSpaceType, TaggedProductSearchSpace, Box
 from tensorflow_probability.python.distributions import Categorical
@@ -13,7 +14,7 @@ from corel.util.k_best import KeepKBest
 from corel.weightings.vae.cbas_vae_wrapper import CBASVAEWrapper
 
 
-def make_latent_optimizer(batch_size=1, samples_from_proposal=50):
+def make_latent_optimizer(problem_info: ProblemSetupInformation, batch_size=1, samples_from_proposal=50):
     assert(samples_from_proposal >= batch_size)
     def latent_optimizer(search_space: SearchSpaceType, acquisition_function) -> tf.Tensor:
         raise NotImplementedError("get problem quantities")

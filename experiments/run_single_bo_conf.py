@@ -17,19 +17,20 @@ from trieste.objectives.utils import mk_observer
 from corel.optimization.lambo_optimizer import make_lambo_optimizer
 from corel.optimization.pareto_frontier_explorer import make_pareto_frontier_explorer
 from corel.optimization.randomized_pareto_frontier_explorer import make_randomized_pareto_frontier_explorer
-from corel.optimization.simplex_optimizer import simplex_optimizer, make_simplex_optimizer
+from corel.optimization.simplex_optimizer import make_simplex_optimizer
+from corel.optimization.unaligned_batch_simplex_optimizer import make_unaligned_batch_simplex_optimizer
 from corel.protein_model import ProteinModel
 from corel.trieste.custom_batch_acquisition_rule import CustomBatchEfficientGlobalOptimization
 from corel.util.constants import PADDING_SYMBOL_INDEX, BATCH_SIZE
 from corel.util.util import get_amino_acid_integer_mapping_from_info, transform_string_sequences_to_integer_arrays
 from corel.weightings.hmm.hmm_factory import HMMFactory
-# from experiments.config.problem_mappings import hmm_problem_model_mapping
+from experiments.config.problem_mappings import hmm_problem_model_mapping
 # TODO: import this from experiments.config
-hmm_problem_model_mapping = {
-    "foldx_rfp_lambo": "/Users/rcml/corel/experiments/assets/hmms/rfp.hmm"
-}
+# hmm_problem_model_mapping = {
+#     "foldx_rfp_lambo": "/Users/rcml/corel/experiments/assets/hmms/rfp.hmm"
+# }
 
-DEBUG = False
+DEBUG = True
 LOG_POST_PERFORMANCE_METRICS = False
 TEMPLATE = f"python {__file__} "
 
@@ -119,7 +120,8 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
         ei = ExpectedHypervolumeImprovement()
     else:
         raise RuntimeError("What kind of objective is that?!")
-    rule = CustomBatchEfficientGlobalOptimization(optimizer=optimizer_factory(batch_evaluations=batch_evaluations), builder=ei, num_query_points=batch_evaluations)
+    optimizer_function = optimizer_factory(setup_info, batch_evaluations=batch_evaluations)
+    rule = CustomBatchEfficientGlobalOptimization(optimizer=optimizer_function, builder=ei, num_query_points=batch_evaluations)
     weighting = weighting_factory.create(setup_info)
     #model = TrainableModelStack(*[(ProteinModel(weighting, AA=AA), 1) for _ in range(train_obj.shape[1])])
     model = ProteinModel(weighting, AA)
@@ -139,5 +141,6 @@ if __name__ == '__main__':
     #_call_run(**vars(args))
     problem = "foldx_rfp_lambo"
     #optimizer_factory = make_lambo_optimizer
+    optimizer_factory = make_unaligned_batch_simplex_optimizer
     run_single_bo_conf(problem, 32, HMMFactory(hmm_problem_model_mapping[problem], problem), optimizer_factory,
                        seed=0, batch_evaluations=16)
