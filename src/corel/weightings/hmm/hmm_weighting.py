@@ -23,7 +23,9 @@ class HMMWeighting(AbstractWeighting):
 
         if not p.dtype.is_integer:
             # bug in tensorflow: 0^0=1. Well, good for me...
-            p_is_atomic = tf.reduce_all(tf.pow(p, p) == 1.)
+            #p_is_atomic = tf.reduce_all(tf.pow(p, p) == 1.)
+            # the line below does not exploit a bug
+            p_is_atomic = tf.reduce_all(tf.square(p) == p)
             assert(len(p.shape) == 3)
 
             if p_is_atomic:
@@ -41,6 +43,8 @@ class HMMWeighting(AbstractWeighting):
                 #     continue
                 seq_to_int = np.array([self.index_map[s[j]] for j in range(len(s))])
                 _, c = forward(self.s0, self.T, self.em, seq_to_int)
+                # TODO: it might be necessary to post-multiply transitioning into the last state!
+                # otherwise short sequences have much higher probability than they should!
                 e[i] = np.prod(c)
             else:
                 # The permutation should take care of the padding symbol.
@@ -48,11 +52,13 @@ class HMMWeighting(AbstractWeighting):
                 # assert p.shape[1] == self.em.shape[1], \
                 #     (f"Input distribution is over {p.shape[1]} elements whereas the HMM is over {self.em.shape[1]}. "
                 #      f"Did you maybe forget to take care of a padding symbol?")
-                p_ = p.numpy()[i, :, self.index_permutation].transpose()  # for some reason numpy swaps the dimensions with this operation!
+                #p_ = p.numpy()[i, :, self.index_permutation].transpose()  # for some reason numpy swaps the dimensions with this operation!
+                p_ = p[i, :, :]
                 e[i] = self._expectation(p_)
         return tf.constant(e)
 
-    def _expectation(self, p: np.ndarray):
+    def _expectation(self, p_):
+        p = p_.numpy()[:, self.index_permutation].transpose()  # for some reason numpy swaps the dimensions with this operation!
         return self._expectation_ref(p)
         # TODO:  implement more efficiently
         # assert p.shape[1] == self.em.shape[1], \
@@ -71,7 +77,6 @@ class HMMWeighting(AbstractWeighting):
             temp_new[s] += np.sum(p[0, :] * self.em[s, :]) * temp_old[s]
 
         return np.sum(self.s0.flatten() * temp_new)
-
 
     def _expectation_ref(self, p: np.ndarray):
         # assert p.shape[1] == self.em.shape[1], \

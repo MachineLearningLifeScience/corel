@@ -1,6 +1,24 @@
 __author__ = 'Simon Bartels'
 
+import warnings
+import tensorflow as tf
 import numpy as np
+
+
+def tf_forward(s0, T, em, y):
+    # TODO: this implementation could maybe be numerically more stable by switching to log-values?
+    L = y.shape[0]
+    N = em.shape[0]
+    alpha = tf.reshape(s0, (N, )) * tf.transpose(em[:, y[0]])
+    c = tf.reduce_sum(alpha)
+    proba = tf.ones_like(c)
+    alpha = alpha / c
+    for t in range(1, L):
+        alpha = tf.squeeze(tf.expand_dims(alpha, 0) @ T) * tf.transpose(em[:, y[t]])
+        c = tf.reduce_sum(alpha)
+        alpha = alpha / c
+        proba = proba * c
+    return proba
 
 
 def forward(s0, T, em, y):

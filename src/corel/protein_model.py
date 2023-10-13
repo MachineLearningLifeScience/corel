@@ -51,15 +51,6 @@ class ProteinModel(TrainableProbabilisticModel):
         # this implementation assumes that each query point is a distribution
         p_query = tf.reshape(query_points, [query_points.shape[0], query_points.shape[1] // self.AA, self.AA])
         ps = self.distribution(p_query)
-        # qs: probability of the observed sequences under p_query
-        qs = np.prod(p_query.numpy()[0, np.arange(p_query.shape[1]), self.dataset.query_points.numpy()], axis=-1)
-        qs = tf.constant(qs.reshape([query_points.shape[0], self.dataset.query_points.shape[0]]))
-        #qs = tf.reduce_prod(tf.gather(query_points[0, ...], self.dataset.query_points, dim=-1))
-        # BEWARE: this is NOT correct for atoms!
-        # the equation below can become numerically negative
-        #squared_hellinger_distance = ps / 2 - tf.transpose(self.ps) * tf.square(1 - tf.sqrt(qs)) / 2
-        # the following equation seems to be better suitable
-        squared_hellinger_distance = ps / 2 + tf.transpose(self.ps) * (0.5 - tf.sqrt(qs))
         assert(query_points.shape[0] == 1)
         if np.all(tf.square(query_points).numpy() == query_points.numpy()):
             #assert(qs.numpy() == 0.)  # only for not observed points
@@ -69,11 +60,29 @@ class ProteinModel(TrainableProbabilisticModel):
             squared_hellinger_distance = tf.where(
                 tf.reduce_all(tf.cast(tf.argmax(p_query, axis=-1), self.dataset.query_points.dtype) - self.dataset.query_points == 0, axis=-1),
                 tf.zeros_like(squared_hellinger_distance), squared_hellinger_distance)
+        else:
+            qs = self._evaluate_data_sequences_in_query_distribution(p_query)
+            squared_hellinger_distance = ps / 2 + tf.transpose(self.ps) * (0.5 - tf.sqrt(qs))
+
         num_tasks = self.dataset.observations.shape[1]
         # I have removed the amplitude here. For the mean it cancels and we apply it later for the covariance
         cov = [tf.exp(-tf.sqrt(squared_hellinger_distance) / tf.exp(self.log_length_scales[i])) for i in range(num_tasks)]
         temp = [tf.transpose(tf.linalg.triangular_solve(self.Ls[i], tf.transpose(cov[i]), lower=True)) for i in range(num_tasks)]
         return temp
+
+    def _evaluate_data_sequences_in_query_distribution(self, p_query):
+        """
+        Evaluates P_query(X_data) for all the sequences that we have in our dataset.
+        :param p_query:
+            the distribution
+        :return:
+            the probabilities
+        """
+        # qs: probability of the observed sequences under p_query
+        qs = np.prod(p_query.numpy()[0, np.arange(p_query.shape[1]), self.dataset.query_points.numpy()], axis=-1)
+        qs = tf.constant(qs.reshape([p_query.shape[0], self.dataset.query_points.shape[0]]))
+        #qs = tf.reduce_prod(tf.gather(query_points[0, ...], self.dataset.query_points, dim=-1))
+        return qs
 
     def predict(self, query_points: TensorType) -> tuple[TensorType, TensorType]:
         temp = self._predict(query_points)

@@ -34,7 +34,7 @@ def _make_optimizer(L, AA, acquisition_function, x0=None):
         # TODO: optimize as long as gradient is too large!
         grad_norm = tf.float64.max
         it = 1
-        while grad_norm > 1e-15:
+        while grad_norm > 0.:  #1e-15:
             tf.print("simplex gradient descent step " + str(it))
             # TODO: use persistent flag?
             with tf.GradientTape() as t:
@@ -67,6 +67,8 @@ def _make_optimizer(L, AA, acquisition_function, x0=None):
             argmax_is_optimum = True
             for i in range(L):
                 gsi = ys[i] * xs[i] - tf.transpose(xs[i]) @ ys[i] * xs[i]
+                if tf.reduce_all(tf.abs(gsi) == 0.):
+                    continue
                 strongest_push = tf.argmax(gsi).numpy()[0]
                 most_likely_amino_acid = tf.argmax(xs[i]).numpy()[0]
                 most_likely_amino_acid_is_best = strongest_push == most_likely_amino_acid
@@ -74,6 +76,7 @@ def _make_optimizer(L, AA, acquisition_function, x0=None):
                 if not most_likely_amino_acid_is_best:
                     grad_diff = max(1e-15, gsi[strongest_push] - gsi[most_likely_amino_acid])  # avoid division by 0
                     beta = 1. / alpha * (xs[i][most_likely_amino_acid] - xs[i][strongest_push] + 1e-15) / grad_diff
+                    raise NotImplementedError("TODO: the padding symbol index is creating problems here")
                     longest_possible_move = -tf.reduce_min(xs[i] / gsi)
                     beta = min(longest_possible_move / alpha, beta)
 

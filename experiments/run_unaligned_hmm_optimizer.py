@@ -14,6 +14,8 @@ from trieste.space import TaggedProductSearchSpace, Box, DiscreteSearchSpace
 from trieste.bayesian_optimizer import BayesianOptimizer
 from trieste.objectives.utils import mk_observer
 
+from corel.aligning_protein_model import AligningProteinModel
+from corel.optimization.hmm_simplex_optimizer import make_hmm_simplex_optimizer
 from corel.optimization.lambo_optimizer import make_lambo_optimizer
 from corel.optimization.pareto_frontier_explorer import make_pareto_frontier_explorer
 from corel.optimization.randomized_pareto_frontier_explorer import make_randomized_pareto_frontier_explorer
@@ -24,7 +26,10 @@ from corel.trieste.custom_batch_acquisition_rule import CustomBatchEfficientGlob
 from corel.util.constants import PADDING_SYMBOL_INDEX, BATCH_SIZE
 from corel.util.util import get_amino_acid_integer_mapping_from_info, transform_string_sequences_to_integer_arrays
 from corel.weightings.hmm.hmm_factory import HMMFactory
+from corel.weightings.hmm.unaligned_hmm_weighting import UnalignedHMMWeighting
 from experiments.config.problem_mappings import hmm_problem_model_mapping
+from hmm_profile import reader
+
 # TODO: import this from experiments.config
 # hmm_problem_model_mapping = {
 #     "foldx_rfp_lambo": "/Users/rcml/corel/experiments/assets/hmms/rfp.hmm"
@@ -35,8 +40,7 @@ LOG_POST_PERFORMANCE_METRICS = False
 TEMPLATE = f"python {__file__} "
 
 
-def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
-                       weighting_factory, optimizer_factory, seed: int = 0, batch_evaluations: int = 1):
+def run_unaligned_hmm_optimizer_on_debug(seed=0):
     # make problem reproducible
     random.seed(seed)
     tf.random.set_seed(seed)
@@ -45,42 +49,35 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
     # build problem
     caller_info = dict()
     caller_info["DEBUG"] = DEBUG  # report if DEBUG flag is set
-    caller_info[BATCH_SIZE] = batch_evaluations
-    if not DEBUG:
-        setup_info, blackbox_, train_x_, train_obj, run_info = objective_factory.create(problem, seed=seed,
-                                                                                        caller_info=caller_info,
-                                                                                        force_isolation=True,
-                                                                                        observer=ExternalObserver())
-    else:
-        AMINO_ACIDS = [
-            "A",
-            "R",
-            "N",
-            "D",
-            "C",
-            "E",
-            "Q",
-            "G",
-            "H",
-            "I",
-            "L",
-            "K",
-            "M",
-            "F",
-            "P",
-            "S",
-            "T",
-            "W",
-            "Y",
-            "V",
-        ]
-        setup_info = ProblemSetupInformation(problem, 244, False, AMINO_ACIDS)
-        class DebugBlackBox(AbstractBlackBox):
-            def _black_box(self, x, context=None):
-                return np.random.randn(x.shape[0], 2)
-        blackbox_ = DebugBlackBox(setup_info)
-        train_x_ = ["ARN", "DCEE"]
-        train_obj = np.random.randn(2, 2)
+    AMINO_ACIDS = [
+        "A",
+        "R",
+        "N",
+        "D",
+        "C",
+        "E",
+        "Q",
+        "G",
+        "H",
+        "I",
+        "L",
+        "K",
+        "M",
+        "F",
+        "P",
+        "S",
+        "T",
+        "W",
+        "Y",
+        "V",
+    ]
+    setup_info = ProblemSetupInformation("debug", 244, False, AMINO_ACIDS)
+    class DebugBlackBox(AbstractBlackBox):
+        def _black_box(self, x, context=None):
+            return np.random.randn(x.shape[0], 2)
+    blackbox_ = DebugBlackBox(setup_info)
+    train_x_ = ["ARN", "DCEE"]
+    train_obj = np.random.randn(2, 2)
 
     #train_x_ = train_x_[:4]
     #train_obj = train_obj[:4, ...]
@@ -120,27 +117,21 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
         ei = ExpectedHypervolumeImprovement()
     else:
         raise RuntimeError("What kind of objective is that?!")
-    optimizer_function = optimizer_factory(setup_info, batch_evaluations=batch_evaluations)
-    rule = CustomBatchEfficientGlobalOptimization(optimizer=optimizer_function, builder=ei, num_query_points=batch_evaluations)
-    weighting = weighting_factory.create(setup_info)
+    optimizer_factory = make_hmm_simplex_optimizer
+    optimizer_function = optimizer_factory(setup_info, batch_evaluations=1)
+    rule = CustomBatchEfficientGlobalOptimization(optimizer=optimizer_function, builder=ei, num_query_points=1)
+    amino_acid_integer_mapping = get_amino_acid_integer_mapping_from_info(setup_info)
+    with open("./assets/hmms/rfp.hmm") as f:
+        hmm = reader.read_single(f)
+        f.close()
+    weighting = UnalignedHMMWeighting(hmm, amino_acid_integer_mapping)
     #model = TrainableModelStack(*[(ProteinModel(weighting, AA=AA), 1) for _ in range(train_obj.shape[1])])
-    model = ProteinModel(weighting, AA)
+    model = AligningProteinModel(weighting, AA)
+    max_blackbox_evaluations = 3
     result = bo.optimize(max_blackbox_evaluations, initial_data, model, acquisition_rule=rule)
     #blackbox_.terminate()
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="")
-    parser.add_argument("-s", "--seed", type=int, default=0)
-    parser.add_argument("-m", "--max_evaluations", type=int, default=32)
-    parser.add_argument("-p", "--problem", type=str, default=poli.core.registry.get_problems()[0],
-                        choices=poli.core.registry.get_problems())
-    parser.add_argument("-b", "--batch_evaluations", type=int, default=16)
-    args = parser.parse_args()
     tf.config.run_functions_eagerly(run_eagerly=True)
-    #_call_run(**vars(args))
-    problem = "foldx_rfp_lambo"
-    #optimizer_factory = make_lambo_optimizer
-    #optimizer_factory = make_unaligned_batch_simplex_optimizer
-    run_single_bo_conf(problem, 32, HMMFactory(hmm_problem_model_mapping[problem], problem), optimizer_factory,
-                       seed=0, batch_evaluations=16)
+    run_unaligned_hmm_optimizer_on_debug()
