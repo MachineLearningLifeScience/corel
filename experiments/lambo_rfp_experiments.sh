@@ -25,5 +25,13 @@ done
 python scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=2 optimizer.num_rounds=${NUM_ITERATIONS} # 'hydra.searchpath=[file:///Users/rcml/poli/src/poli/objective_repository/foldx_rfp_lambo/]'
 
 for seed in 0 1 3 5 7; do
-    python scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS}
+    # NOTE: num_gens implicitly trains representations
+    # NOTE: weighted resampling scheme pushes performance - cannot be disabled.
+    python scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS} optimizer.num_gens=1
+done
+
+
+# Benchmark Poli Task RFP Foldx cold n=1 one reference protein
+for seed in 0 1 3 5 7; do
+    python scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp_cold tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS}
 done
