@@ -163,7 +163,10 @@ class PoliBaseMlFlowObserver(AbstractObserver):
     def finish(self) -> None:
         _seqs = ["".join(list(s[0])) for s in self.sequences if s.dtype == "<U1"]
         sequences = np.array(_seqs)
-        init_sequences = np.array(self.initial_sequences[0])
+        if self.initial_sequences and isinstance(self.initial_sequences, list):
+            init_sequences = np.array(self.initial_sequences[0])
+        else:
+            init_sequences = np.array([])
         obs = np.concatenate(self.values)
         init_obs = np.concatenate(self.initial_values)
         artifact_uri = mlflow.active_run().info.artifact_uri
