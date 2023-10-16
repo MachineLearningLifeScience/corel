@@ -1,6 +1,6 @@
 import logging
 import warnings
-
+from uuid import uuid4
 import mlflow
 import os
 from pathlib import Path
@@ -16,9 +16,16 @@ mlflow.set_tracking_uri(tracking_uri)
 
 
 def initialize_logger(problem_setup_info, caller_info, seed, run_id=None):
-    mlflow.set_experiment(experiment_name=problem_setup_info.get_problem_name())
+    experiment = mlflow.set_experiment(experiment_name=problem_setup_info.get_problem_name())
+    if "ALGORITHM" in caller_info.keys():
+        run_name = f"{caller_info.get('ALGORITHM')}_b{caller_info.get('BATCH_SIZE')}_n{caller_info.get('n_D0')}_s{caller_info.get('seed')}_{str(uuid4().int)[:6]}"
+    else:
+        run_name = None
     if run_id is None:
-        run = mlflow.start_run()
+        run = mlflow.start_run(
+            run_name=run_name,
+            experiment_id=experiment.experiment_id
+        )
         mlflow.set_tags(caller_info)
         mlflow.set_tag(SEED, str(seed))
     else:
