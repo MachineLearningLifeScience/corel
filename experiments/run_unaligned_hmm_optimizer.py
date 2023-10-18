@@ -26,6 +26,7 @@ from corel.trieste.custom_batch_acquisition_rule import CustomBatchEfficientGlob
 from corel.util.constants import PADDING_SYMBOL_INDEX, BATCH_SIZE
 from corel.util.util import get_amino_acid_integer_mapping_from_info, transform_string_sequences_to_integer_arrays
 from corel.weightings.hmm.hmm_factory import HMMFactory
+from corel.weightings.hmm.load_phmm import load_hmm
 from corel.weightings.hmm.unaligned_hmm_weighting import UnalignedHMMWeighting
 from experiments.config.problem_mappings import hmm_problem_model_mapping
 from hmm_profile import reader
@@ -124,7 +125,9 @@ def run_unaligned_hmm_optimizer_on_debug(seed=0):
     with open("./assets/hmms/rfp.hmm") as f:
         hmm = reader.read_single(f)
         f.close()
-    weighting = UnalignedHMMWeighting(hmm, amino_acid_integer_mapping)
+    s0, T, em, extra_info_dict = load_hmm(hmm)
+    # TODO: is the hmm alphabet the right one?
+    weighting = UnalignedHMMWeighting(s0, T, em, hmm.metadata.alphabet, amino_acid_integer_mapping)
     #model = TrainableModelStack(*[(ProteinModel(weighting, AA=AA), 1) for _ in range(train_obj.shape[1])])
     model = AligningProteinModel(weighting, AA)
     max_blackbox_evaluations = 3

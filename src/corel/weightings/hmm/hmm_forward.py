@@ -11,7 +11,7 @@ def tf_forward(s0, T, em, y):
     N = em.shape[0]
     alpha = tf.reshape(s0, (N, )) * tf.transpose(em[:, y[0]])
     c = tf.reduce_sum(alpha)
-    proba = tf.ones_like(c)
+    proba = c * tf.ones_like(c)
     alpha = alpha / c
     for t in range(1, L):
         alpha = tf.squeeze(tf.expand_dims(alpha, 0) @ T) * tf.transpose(em[:, y[t]])

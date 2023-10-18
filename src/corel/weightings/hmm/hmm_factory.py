@@ -6,6 +6,7 @@ from poli.core.problem_setup_information import ProblemSetupInformation
 from corel.util.util import get_amino_acid_integer_mapping_from_info
 from corel.weightings.hmm.hmm_weighting import HMMWeighting
 from hmm_profile import reader
+from corel.weightings.hmm.load_phmm import load_hmm
 
 
 class HMMFactory:
@@ -20,7 +21,9 @@ class HMMFactory:
         with open(self.hmm_file) as f:
             hmm = reader.read_single(f)
             f.close()
-        return HMMWeighting(hmm, amino_acid_integer_mapping)
+        s0, T, em, extra_info_dict = load_hmm(hmm)
+        hmm_alphabet = hmm.metadata.alphabet
+        return HMMWeighting(s0, T, em, hmm_alphabet, amino_acid_integer_mapping)
 
     def get_name(self):
         return self.__class__.__name__

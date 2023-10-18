@@ -1,7 +1,7 @@
 import unittest
 from itertools import product
-
 import numpy as np
+import tensorflow as tf
 
 from corel.util.constants import PADDING_SYMBOL_INDEX
 from corel.weightings.hmm.hmm_forward import forward, _forward_instable
@@ -14,7 +14,7 @@ class TestHMMweighting(unittest.TestCase):
         hmm = TestHMMImplementation()
         p = np.square(np.random.randn(L, hmm.em.shape[1]))
         p /= np.sum(p, axis=-1)[:, None]
-        e_ = hmm._expectation(p)
+        e_ = hmm._expectation(tf.constant(p))
         e = 0.
         for x in product(list(range(hmm.em.shape[1])), repeat=L):
             _, c = forward(hmm.s0, hmm.T, hmm.em, np.array(x))
@@ -27,7 +27,7 @@ class TestHMMweighting(unittest.TestCase):
         x = np.random.randint(0, hmm.em.shape[1], L)
         p = np.zeros([L, hmm.em.shape[1]])
         p[np.arange(L), x] = 1.
-        e_ = hmm._expectation(p)
+        e_ = hmm._expectation(tf.constant(p))
         #_, c_ = _forward_instable(hmm.s0, hmm.T, hmm.em, x)
         _, c = forward(hmm.s0, hmm.T, hmm.em, x)
         log_e = np.sum(np.log(c))
@@ -47,8 +47,9 @@ class TestHMMImplementation(HMMWeighting):
         self.em = np.diag(1. / np.sum(self.em, axis=1)) @ self.em
         hmm_alphabet = [str(i) for i in range(AA)]
         assert(PADDING_SYMBOL_INDEX == 0)
-        amino_acid_integer_mapping = {hmm_alphabet[i]: i+1 for i in range(len(hmm_alphabet))}
+        amino_acid_integer_mapping = {hmm_alphabet[i]: i for i in range(len(hmm_alphabet))}
         self.index_map = {amino_acid_integer_mapping[hmm_alphabet[i]]: i for i in range(len(hmm_alphabet))}
+        self.index_permutation = np.array(list(amino_acid_integer_mapping[hmm_alphabet[i]] for i in range(len(hmm_alphabet))))
 
 
 if __name__ == '__main__':

@@ -11,9 +11,10 @@ from corel.weightings.hmm.load_phmm import load_hmm
 
 
 class HMMWeighting(AbstractWeighting):
-    def __init__(self, hmm, amino_acid_integer_mapping):
-        self.s0, self.T, self.em, extra_info_dict = load_hmm(hmm)
-        hmm_alphabet = hmm.metadata.alphabet
+    def __init__(self, s0, T, em, hmm_alphabet, amino_acid_integer_mapping):
+        self.s0 = s0
+        self.T = T
+        self.em = em
         self.index_map = {amino_acid_integer_mapping[hmm_alphabet[i]]: i for i in range(len(hmm_alphabet))}
         #self.index_permutation = [self.index_map[i] for i in np.sort(list(self.index_map.keys()))]
         self.index_permutation = np.array(list(amino_acid_integer_mapping[hmm_alphabet[i]] for i in range(len(hmm_alphabet))))
@@ -58,7 +59,7 @@ class HMMWeighting(AbstractWeighting):
         return tf.constant(e)
 
     def _expectation(self, p_):
-        p = p_.numpy()[:, self.index_permutation].transpose()  # for some reason numpy swaps the dimensions with this operation!
+        p = p_.numpy()[:, self.index_permutation]  #.transpose()  # for some reason numpy swaps the dimensions with this operation!
         return self._expectation_ref(p)
         # TODO:  implement more efficiently
         # assert p.shape[1] == self.em.shape[1], \
