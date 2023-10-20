@@ -41,8 +41,15 @@ def make_hmm_simplex_optimizer(problem_info: ProblemSetupInformation, dataset=No
         opt = _make_optimizer(p0.shape[0], AA, acquisition_function, p0)
         p = opt()
         # TODO: now we ideally get the viterbi path for all observed sequences and sample according to p
-        state_path = viterbi(inputs_handle(acquisition_function)[0].numpy(), hmm.T, hmm.em, hmm.s0)
+        padded_seq = inputs_handle(acquisition_function)[0].numpy()
+        if not problem_info.sequences_are_aligned():
+            seq = padded_seq[padded_seq != PADDING_SYMBOL_INDEX]
+        else:
+            seq = padded_seq
+        state_path = viterbi(seq, hmm.T, hmm.em, hmm.s0)
         x = tf.expand_dims(tf.concat([tf.argmax(p[s]) for s in state_path], axis=0), axis=0)
+        if not problem_info.sequences_are_aligned():
+            x = tf.concat([x, PADDING_SYMBOL_INDEX * tf.ones([1, problem_info.get_max_sequence_length() - x.shape[1]], dtype=x.dtype)], axis=1)
         #print("best acquisition value found: " + str(best_val))
         return x  #tf.concat([x])
     return unaligned_batch_simplex_optimizer
