@@ -77,7 +77,8 @@ def _make_optimizer(L, AA, acquisition_function, x0=None):
                     grad_diff = max(1e-15, gsi[strongest_push] - gsi[most_likely_amino_acid])  # avoid division by 0
                     beta = 1. / alpha * (xs[i][most_likely_amino_acid] - xs[i][strongest_push] + 1e-15) / grad_diff
                     #raise NotImplementedError("TODO: the padding symbol index is creating problems here")
-                    longest_possible_move = -tf.reduce_min(xs[i] / gsi)
+                    moves = xs[i] / gsi
+                    longest_possible_move = -tf.reduce_min(moves[tf.math.is_finite(moves)])
                     beta = min(longest_possible_move / alpha, beta)
 
                 argmax_is_optimum = argmax_is_optimum and most_likely_amino_acid_is_best
