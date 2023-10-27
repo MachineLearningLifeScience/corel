@@ -25,6 +25,25 @@ def make_hmm_simplex_optimizer(problem_info: ProblemSetupInformation, dataset=No
         observations_handle = lambda ac: ac._model.dataset.observations
         inputs_handle = lambda ac: ac._model.dataset.query_points
 
+    def get_p0(padded_seq, hmm):
+        if not problem_info.sequences_are_aligned():
+            seq = padded_seq[padded_seq != PADDING_SYMBOL_INDEX]
+        else:
+            seq = padded_seq
+        seq_to_int = np.array([hmm.index_map[seq[j]] for j in range(len(seq))])
+        state_path = viterbi(seq_to_int, hmm.T, hmm.em, np.squeeze(hmm.s0))
+        assert(PADDING_SYMBOL_INDEX == 0)
+        frequencies = np.zeros(hmm.em.shape)
+        for s in range(hmm.T.shape[0]):
+            f = np.bincount(seq_to_int[np.where(state_path == s)])
+            if len(f) == 0:
+                f = hmm.em[s, :]
+            frequencies[s, :len(f)] = f / np.sum(f)
+        p0 = np.concatenate([np.zeros([hmm.T.shape[0], 1]), frequencies], axis=1)
+        return p0
+
+
+
     def unaligned_batch_simplex_optimizer(search_space: SearchSpaceType, acquisition_function) -> tf.Tensor:
         assert(isinstance(acquisition_function._model, AligningProteinModel))
         hmm: UnalignedHMMWeighting = acquisition_function._model.distribution
@@ -34,10 +53,14 @@ def make_hmm_simplex_optimizer(problem_info: ProblemSetupInformation, dataset=No
         else:
             assert(AA - 1 == len(problem_info.get_alphabet()))
 
+        assert(PADDING_SYMBOL_INDEX == 0)
+        #p0 = np.concatenate([np.zeros([hmm.T.shape[0], 1]), hmm.em], axis=1)
+        ##p0 = np.concatenate([np.zeros([hmm.T.shape[0], 1]), np.random.rand(*hmm.em.shape)], axis=1)
+        # TODO: remove above line
+        #p0 = p0 / np.sum(p0, axis=-1)[:, np.newaxis]  # TODO: should be normalized but isn't. Investigate!
 
-        p0 = np.concatenate([np.zeros([hmm.T.shape[0], 1]), acquisition_function._model.distribution.em], axis=1)
-        p0 = p0 / np.sum(p0, axis=-1)[:, np.newaxis]  # TODO: should be normalized but isn't. Investigate!
         # TODO: a much better initial distribution is probably doing an encode/decode
+        p0 = get_p0(padded_seq=inputs_handle(acquisition_function)[-1].numpy(), hmm=hmm)
         opt = _make_optimizer(p0.shape[0], AA, acquisition_function, p0)
         p = opt()
         # TODO: now we ideally get the viterbi path for all observed sequences and sample according to p
@@ -46,10 +69,15 @@ def make_hmm_simplex_optimizer(problem_info: ProblemSetupInformation, dataset=No
             seq = padded_seq[padded_seq != PADDING_SYMBOL_INDEX]
         else:
             seq = padded_seq
-        state_path = viterbi(seq, hmm.T, hmm.em, hmm.s0)
+        seq_to_int = np.array([hmm.index_map[seq[j]] for j in range(len(seq))])
+        state_path = viterbi(seq_to_int, hmm.T, hmm.em, hmm.s0)
         x = tf.expand_dims(tf.concat([tf.argmax(p[s]) for s in state_path], axis=0), axis=0)
         if not problem_info.sequences_are_aligned():
             x = tf.concat([x, PADDING_SYMBOL_INDEX * tf.ones([1, problem_info.get_max_sequence_length() - x.shape[1]], dtype=x.dtype)], axis=1)
+        # TODO: keep in mind that this acquisition function optimizes over HMM emission probabilities!
+        # TODO: this means that to evaluate the sequence we need to do something different!
         #print("best acquisition value found: " + str(best_val))
         return x  #tf.concat([x])
     return unaligned_batch_simplex_optimizer
+
+

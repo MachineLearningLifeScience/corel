@@ -122,7 +122,10 @@ def run_unaligned_hmm_optimizer_on_debug(seed=0):
     optimizer_function = optimizer_factory(setup_info, batch_evaluations=1)
     rule = CustomBatchEfficientGlobalOptimization(optimizer=optimizer_function, builder=ei, num_query_points=1)
     amino_acid_integer_mapping = get_amino_acid_integer_mapping_from_info(setup_info)
-    with open("./assets/hmms/rfp.hmm") as f:
+    hmm_file = "./assets/hmms/rfp.hmm"
+    if DEBUG:
+        hmm_file = "./assets/hmms/test_phmm.hmm"
+    with open(hmm_file) as f:
         hmm = reader.read_single(f)
         f.close()
     s0, T, em, extra_info_dict = load_hmm(hmm)

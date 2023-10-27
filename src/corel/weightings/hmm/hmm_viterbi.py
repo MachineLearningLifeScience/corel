@@ -42,11 +42,11 @@ def viterbi(y, A, B, Pi):
     # #v -= torch.log(c[0])
     # #logT1[:, 0] -= torch.logsumexp(logT1[:, 0], dim=0)
     # Store estimated most likely path
-    T2[:, 0] = np.argmax(logT1[:, 0])
+    #T2[:, 0] = np.argmax(logT1[:, 0])  # no need to initialize
 
     # iterate over all observations from left to right
     for i in range(1, T):
-        T2[:, i] = np.argmax(logT1[:, i - 1] + logA.T, axis=1)
+        T2[:, i] = np.argmax(logT1[:, i - 1] + logA.T, axis=1)  # emission probabilities do not affect argmax
         logT1[:, i] = np.max(logT1[:, i - 1] + logA.T, axis=1)
         logT1[:, i] += logB[:, y[i]]
         # v, k = torch.max(v + logA.T, dim=1)

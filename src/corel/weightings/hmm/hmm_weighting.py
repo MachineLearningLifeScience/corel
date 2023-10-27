@@ -12,8 +12,16 @@ from corel.weightings.hmm.load_phmm import load_hmm
 
 class HMMWeighting(AbstractWeighting):
     def __init__(self, s0, T, em, hmm_alphabet, amino_acid_integer_mapping):
+        assert(len(s0.shape) == 2)
+        S = s0.shape[0]
+        assert(s0.shape[1] == 1)
+        np.testing.assert_almost_equal(np.sum(s0), 1.)
         self.s0 = s0
+        assert(T.shape[0] == S == T.shape[1])
+        np.testing.assert_almost_equal(np.sum(T, axis=-1), np.ones(S))
         self.T = T
+        assert(em.shape[0] == S)
+        np.testing.assert_almost_equal(np.sum(em, axis=-1), np.ones(S))
         self.em = em
         self.index_map = {amino_acid_integer_mapping[hmm_alphabet[i]]: i for i in range(len(hmm_alphabet))}
         #self.index_permutation = [self.index_map[i] for i in np.sort(list(self.index_map.keys()))]

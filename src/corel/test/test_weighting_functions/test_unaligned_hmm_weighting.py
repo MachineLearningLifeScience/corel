@@ -8,12 +8,11 @@ import corel.weightings.hmm.unaligned_hmm_weighting
 from corel.util.constants import PADDING_SYMBOL_INDEX
 from corel.weightings.hmm.hmm_forward import forward, _forward_instable, tf_forward
 from corel.weightings.hmm.unaligned_hmm_weighting import UnalignedHMMWeighting
-
+#from corel.test.test_weighting_functions.test_hmm_weighting import TestHMMImplementation
 
 class TestHMMweighting(unittest.TestCase):
     def test_expectation(self):
         L = 3
-        #MAX_LENGTH = L
         corel.weightings.hmm.unaligned_hmm_weighting.MAX_LENGTH = L
         hmm = TestHMMImplementation()
         p = np.square(np.random.randn(*hmm.em.shape))
@@ -42,7 +41,9 @@ class TestHMMweighting(unittest.TestCase):
         #_, c_ = _forward_instable(hmm.s0, hmm.T, hmm.em, x)
         c = tf_forward(hmm.s0, hmm.T, hmm.em, x)
         log_e = tf.math.log(c)
-        self.assertAlmostEqual(log_e, tf.math.log(e_))
+        #self.assertAlmostEqual(log_e, tf.math.log(e_))
+        self.assertAlmostEqual(log_e.numpy(), tf.math.log(e_).numpy())
+
 
     def test_against_naive_implementation(self):
         L = 3
@@ -71,7 +72,6 @@ class TestHMMweighting(unittest.TestCase):
         self.assertAlmostEqual(np.log(e), tf.math.log(e_).numpy())
 
 
-
 class TestHMMImplementation(UnalignedHMMWeighting):
     # noinspection PyMissingConstructor
     def __init__(self):
@@ -79,13 +79,19 @@ class TestHMMImplementation(UnalignedHMMWeighting):
         AA = 11  # number of amino acids
         s0 = np.square(np.random.randn(S, 1))
         s0 /= np.sum(s0)
-        self.s0 = tf.constant(s0)
+        #self.s0 = tf.constant(s0)
+        self.s0 = s0
+
         T = np.square(np.random.randn(S, S))
         T = np.diag(1. / np.sum(T, axis=1)) @ T
-        self.T = tf.constant(T)
+        #self.T = tf.constant(T)
+        self.T = T
+
         em = np.square(np.random.randn(S, AA))
         em = np.diag(1. / np.sum(em, axis=1)) @ em
-        self.em = tf.constant(em)
+        #self.em = tf.constant(em)
+        self.em = em
+
         hmm_alphabet = [str(i) for i in range(AA)]
         assert(PADDING_SYMBOL_INDEX == 0)
         amino_acid_integer_mapping = {hmm_alphabet[i]: i for i in range(len(hmm_alphabet))}
