@@ -1,3 +1,4 @@
+__author__: "S. Bartels"
 import unittest
 from itertools import product
 
