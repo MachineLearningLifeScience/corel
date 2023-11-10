@@ -116,7 +116,7 @@ def transform_phmm_to_hmm(s0, T, em, extra_info_dict):
     T_[-1, -1] = 1.
     em_[-1, -1] = 1.
     try:
-        np.testing.assert_almost_equal(np.sum(s0), np.ones(1), decimal=5)
+        np.testing.assert_almost_equal(np.sum(s0_), np.ones(1), decimal=5)
         np.testing.assert_almost_equal(np.sum(em_, axis=1), np.ones(N), decimal=5)
         np.testing.assert_almost_equal(np.sum(T_, axis=1), np.ones(N), decimal=5)
     except Exception as e:
