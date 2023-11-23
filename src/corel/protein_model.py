@@ -85,9 +85,12 @@ class ProteinModel(TrainableProbabilisticModel):
         raise NotImplementedError("not implemented")
 
     def update(self, dataset: Dataset) -> None:
-        oldN = self.dataset.query_points.shape[0]
-        assert(self.dataset.query_points.numpy() == dataset.query_points.numpy()[:oldN, ...])
-        assert(self.dataset.observations.numpy() == dataset.observations.numpy()[:oldN, ...])
+        if self.dataset is not None:
+            oldN = self.dataset.query_points.shape[0]
+            assert(np.all(self.dataset.query_points.numpy() == dataset.query_points.numpy()[:oldN, ...]))
+            assert(np.all(self.dataset.observations.numpy() == dataset.observations.numpy()[:oldN, ...]))
+        else:
+            oldN = 0
         print("getting probabilities of sequences")
         psnew = self.distribution(dataset.query_points[oldN:, ...])
         if self.ps is None:
@@ -98,8 +101,8 @@ class ProteinModel(TrainableProbabilisticModel):
         self._optimized = False
 
     def optimize(self, dataset: Dataset) -> None:
-        assert(self.dataset.query_points.numpy() == dataset.query_points.numpy())
-        assert(self.dataset.observations.numpy() == dataset.observations.numpy())
+        assert(np.all(self.dataset.query_points.numpy() == dataset.query_points.numpy()))
+        assert(np.all(self.dataset.observations.numpy() == dataset.observations.numpy()))
         # transform query points to one_hot? No, better do that in the distribution. HMMs may prefer that
         num_tasks = dataset.observations.shape[1]
         initial_length_scale = np.sqrt(np.median(self.ps.numpy()))
