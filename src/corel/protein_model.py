@@ -92,15 +92,22 @@ class ProteinModel(TrainableProbabilisticModel):
         return samples
 
     def update(self, dataset: Dataset) -> None:
+        oldN = self.dataset.query_points.shape[0]
+        assert(self.dataset.query_points.numpy() == dataset.query_points.numpy()[:oldN, ...])
+        assert(self.dataset.observations.numpy() == dataset.observations.numpy()[:oldN, ...])
+        print("getting probabilities of sequences")
+        psnew = self.distribution(dataset.query_points[oldN:, ...])
+        if self.ps is None:
+            self.ps = psnew
+        else:
+            self.ps = tf.concat([self.ps, psnew], axis=0)
+        self.dataset = dataset
         self._optimized = False
 
     def optimize(self, dataset: Dataset) -> None:
-        self.dataset = dataset
-        self._optimized = True
+        assert(self.dataset.query_points.numpy() == dataset.query_points.numpy())
+        assert(self.dataset.observations.numpy() == dataset.observations.numpy())
         # transform query points to one_hot? No, better do that in the distribution. HMMs may prefer that
-        # TODO: identified the slow culprit! Avoid forward passes for already processed sequences!
-        print("getting probabilities of sequences")
-        self.ps = self.distribution(dataset.query_points)
         num_tasks = dataset.observations.shape[1]
         # TODO: try median?
         initial_length_scale = np.sqrt(np.median(self.ps.numpy()))
@@ -147,6 +154,7 @@ class ProteinModel(TrainableProbabilisticModel):
         print("length scales: " + str([np.exp(self.log_length_scales[i].numpy()) for i in range(num_tasks)]))
         print("noises: " + str([np.exp(self.log_noises[i].numpy()) for i in range(num_tasks)]))
         self.alphas = [tf.linalg.triangular_solve(self.Ls[i], dataset.observations[:, i:i+1] - self.kernel_means[i], lower=True) for i in range(num_tasks)]
+        self._optimized = True
 
     def get_context(self) -> dict:
         """
