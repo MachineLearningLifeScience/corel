@@ -2,7 +2,7 @@ __author__ = 'Simon Bartels'
 
 import logging
 import warnings
-
+from typing import Tuple
 import numpy as np
 import tensorflow as tf
 from gpflow import default_float, set_trainable
@@ -74,7 +74,7 @@ class ProteinModel(TrainableProbabilisticModel):
         temp = [tf.transpose(tf.linalg.triangular_solve(self.Ls[i], tf.transpose(cov[i]), lower=True)) for i in range(num_tasks)]
         return temp
 
-    def predict(self, query_points: TensorType) -> tuple[TensorType, TensorType]:
+    def predict(self, query_points: TensorType) -> Tuple[TensorType, TensorType]:
         temp = self._predict(query_points)
         num_tasks = self.dataset.observations.shape[1]
         mean = tf.concat([temp[i] @ self.alphas[i] + self.kernel_means[i] for i in range(num_tasks)], axis=-1)
