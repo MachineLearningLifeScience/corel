@@ -28,7 +28,7 @@ from corel.observers import HD_PREV, HD_WT, HD_MIN, SEQUENCE, BLACKBOX, MIN_BLAC
 from corel.observers.logger import log, initialize_logger, finish, log_sequence
 
 # NOTE: this here is a very particular Normalizer (presented in the LamBO work)
-from lambo.optimizers.pymoo import Normalizer
+from corel.observers.lambo_imports.normalizer import Normalizer
 
 
 STARTING_N = "n_D0"
@@ -180,6 +180,6 @@ class PoliBaseMlFlowObserver(AbstractObserver):
 if __name__ == '__main__':
     # TODO: set specific observer for specific experiment in designated environment
     results_tracking_uri = Path(corel.__file__).parent.parent.parent.resolve() / "results" / "mlruns"
-    set_observer(PoliBaseMlFlowObserver(tracking_uri=results_tracking_uri), 
-                conda_environment_location="poli__lambo",
-                observer_name="PoliBaseMlFlowObserver")
+    set_observer(PoliBaseMlFlowObserver(tracking_uri=results_tracking_uri))
+                #conda_environment_location="poli__lambo",
+                #observer_name="PoliBaseMlFlowObserver")
