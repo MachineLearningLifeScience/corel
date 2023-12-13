@@ -17,6 +17,7 @@ from trieste.objectives.utils import mk_observer
 from corel.optimization.lambo_optimizer import make_lambo_optimizer
 from corel.optimization.pareto_frontier_explorer import make_pareto_frontier_explorer
 from corel.optimization.randomized_pareto_frontier_explorer import make_randomized_pareto_frontier_explorer
+from corel.optimization.simplex_optimizer import simplex_optimizer, make_simplex_optimizer
 from corel.protein_model import ProteinModel
 from corel.trieste.custom_batch_acquisition_rule import CustomBatchEfficientGlobalOptimization
 from corel.util.constants import PADDING_SYMBOL_INDEX, BATCH_SIZE
@@ -137,6 +138,6 @@ if __name__ == '__main__':
     tf.config.run_functions_eagerly(run_eagerly=True)
     #_call_run(**vars(args))
     problem = "foldx_rfp_lambo"
-    optimizer_factory = make_lambo_optimizer
+    #optimizer_factory = make_lambo_optimizer
     run_single_bo_conf(problem, 32, HMMFactory(hmm_problem_model_mapping[problem], problem), optimizer_factory,
                        seed=0, batch_evaluations=16)

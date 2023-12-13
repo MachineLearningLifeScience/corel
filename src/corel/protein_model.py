@@ -2,7 +2,7 @@ __author__ = 'Simon Bartels'
 
 import logging
 import warnings
-
+from typing import Tuple
 import numpy as np
 import tensorflow as tf
 from gpflow import default_float, set_trainable
@@ -38,7 +38,6 @@ class ProteinModel(TrainableProbabilisticModel):
     def _predict(self, query_points: TensorType) -> List[List[TensorType]]:
         assert(self._optimized)
         if query_points.dtype.is_integer:
-            # TODO: this should maybe be an input transformation?
             query_points = tf.one_hot(query_points, self.AA, dtype=default_float())
             # flatten
             query_points = tf.reshape(query_points, [query_points.shape[0], query_points.shape[1] * query_points.shape[2]])
@@ -74,7 +73,7 @@ class ProteinModel(TrainableProbabilisticModel):
         temp = [tf.transpose(tf.linalg.triangular_solve(self.Ls[i], tf.transpose(cov[i]), lower=True)) for i in range(num_tasks)]
         return temp
 
-    def predict(self, query_points: TensorType) -> tuple[TensorType, TensorType]:
+    def predict(self, query_points: TensorType) -> Tuple[TensorType, TensorType]:
         temp = self._predict(query_points)
         num_tasks = self.dataset.observations.shape[1]
         mean = tf.concat([temp[i] @ self.alphas[i] + self.kernel_means[i] for i in range(num_tasks)], axis=-1)
@@ -84,25 +83,28 @@ class ProteinModel(TrainableProbabilisticModel):
 
     def sample(self, query_points: TensorType, num_samples: int) -> TensorType:
         raise NotImplementedError("not implemented")
-        temp = self._predict(query_points)
-        mean = temp @ self.alpha + self.kernel_mean
-        # TODO: noise?
-        variance = self.amplitude * (prior_cov - temp @ tf.transpose(temp))
-        samples = mean + tf.linalg.cholesky(variance) @ tf.random.normal([query_points.shape[0, num_samples]])
-        return samples
 
     def update(self, dataset: Dataset) -> None:
+        if self.dataset is not None:
+            oldN = self.dataset.query_points.shape[0]
+            assert(np.all(self.dataset.query_points.numpy() == dataset.query_points.numpy()[:oldN, ...]))
+            assert(np.all(self.dataset.observations.numpy() == dataset.observations.numpy()[:oldN, ...]))
+        else:
+            oldN = 0
+        print("getting probabilities of sequences")
+        psnew = self.distribution(dataset.query_points[oldN:, ...])
+        if self.ps is None:
+            self.ps = psnew
+        else:
+            self.ps = tf.concat([self.ps, psnew], axis=0)
+        self.dataset = dataset
         self._optimized = False
 
     def optimize(self, dataset: Dataset) -> None:
-        self.dataset = dataset
-        self._optimized = True
+        assert(np.all(self.dataset.query_points.numpy() == dataset.query_points.numpy()))
+        assert(np.all(self.dataset.observations.numpy() == dataset.observations.numpy()))
         # transform query points to one_hot? No, better do that in the distribution. HMMs may prefer that
-        # TODO: identified the slow culprit! Avoid forward passes for already processed sequences!
-        print("getting probabilities of sequences")
-        self.ps = self.distribution(dataset.query_points)
         num_tasks = dataset.observations.shape[1]
-        # TODO: try median?
         initial_length_scale = np.sqrt(np.median(self.ps.numpy()))
         self.log_length_scales = [tf.Variable(tf.math.log(initial_length_scale * tf.ones(1, dtype=default_float()))) for _ in range(num_tasks)]
         self.log_noises = [tf.Variable(tf.math.log(1e-3 * tf.ones(1, dtype=default_float()))) for _ in range(num_tasks)]
@@ -116,16 +118,13 @@ class ProteinModel(TrainableProbabilisticModel):
                 def opt_criterion():
                     ks = _k(squared_hellinger_distance, self.log_length_scales[i], self.log_noises[i])
                     try:
-                        #print(ks)
                         L = tf.linalg.cholesky(ks)
-                        #print("worked")
                     except Exception as e:
                         logging.exception(e)
                         raise e
                     m, r = get_mean_and_amplitude(L, dataset.observations[:, i:i+1])
                     log_prob = multivariate_normal(dataset.observations[:, i:i+1], m * tf.ones([L.shape[0], 1], default_float()),
                                                    tf.sqrt(r) * L)
-                    #print(log_prob)
                     return -tf.reduce_sum(log_prob)
                 return opt_criterion
 
@@ -136,17 +135,15 @@ class ProteinModel(TrainableProbabilisticModel):
             )
             print(tf.math.exp(self.log_length_scales[i]))
             print(tf.math.exp(self.log_noises[i]))
-        # TODO: log hyper-parameters
         self.Ls = [tf.linalg.cholesky(_k(squared_hellinger_distance, self.log_length_scales[i], self.log_noises[i])) for i in range(num_tasks)]
-        # L_ = tf.linalg.cholesky(K)
         self.kernel_means = dict()
         self.amplitudes = dict()
         for i in range(num_tasks):
             self.kernel_means[i], self.amplitudes[i] = get_mean_and_amplitude(self.Ls[i], dataset.observations[:, i:i+1])
-        #print("covariance matrix:\n" + str(ks.numpy()))
         print("length scales: " + str([np.exp(self.log_length_scales[i].numpy()) for i in range(num_tasks)]))
         print("noises: " + str([np.exp(self.log_noises[i].numpy()) for i in range(num_tasks)]))
         self.alphas = [tf.linalg.triangular_solve(self.Ls[i], dataset.observations[:, i:i+1] - self.kernel_means[i], lower=True) for i in range(num_tasks)]
+        self._optimized = True
 
     def get_context(self) -> dict:
         """

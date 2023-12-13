@@ -102,7 +102,7 @@ def get_mean_and_amplitude(L, Y):
     #r = tf.reduce_sum(tf.square(alpha - m * tf.ones_like(Y)))
     # Above amplitude estimator seems to be missing a normalization!
     # below is the factor as set in Jones et al. 1998
-    r = tf.reduce_sum(tf.square(alpha - m * tf.ones_like(Y))) / Y.shape[0]
+    r = tf.reduce_sum(tf.square(alpha - m * ones)) / Y.shape[0]
     return m, r
 
 

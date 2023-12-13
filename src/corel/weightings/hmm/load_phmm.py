@@ -105,24 +105,25 @@ def transform_phmm_to_hmm(s0, T, em, extra_info_dict):
 
     s0_ = np.zeros(N)
     s0_[0] = s0[0]  # i0
+    assert(s0[1] == 0.)
     s0_[2] = s0[2]  # m1
-    deletion_path = [T[i * 3 + 3, (i + 1) * 3 + 3] for i in range(M - 2)]
+    deletion_path = [T[i * 3 + 3, (i + 1) * 3 + 3] for i in range(M - 1)]
     for j in range(1, M):
-        # TODO: maybe a bit inefficient
-        #deletion_path = [T[i * 3 + 3, (i + 1) * 3 + 3] for i in range(j-1)]
-        s0_[2*j+2] = s0[3] * np.prod(deletion_path[:j]) * T[3*(j-1)+3, 3*j+2]
+        s0_[2*j+2] = s0[3] * np.prod(deletion_path[:j-1]) * T[3*(j-1)+3, 3*j+2]
     #s0[3] = model.start_step.p_emission_to_deletion
 
+    assert(s0_[1] == 0.)  # i1 is only reachable from m1
     T_[-1, -1] = 1.
     em_[-1, -1] = 1.
     try:
-        np.testing.assert_almost_equal(np.sum(s0), np.ones(1), decimal=5)
+        np.testing.assert_almost_equal(np.sum(s0_), np.ones(1), decimal=5)
         np.testing.assert_almost_equal(np.sum(em_, axis=1), np.ones(N), decimal=5)
         np.testing.assert_almost_equal(np.sum(T_, axis=1), np.ones(N), decimal=5)
     except Exception as e:
         logging.exception(e)
         raise e
     T_ = np.diag(1. / np.sum(T_, axis=1)) @ T_  # make proper transition matrix to correct for numerical instabilities
+    em_ = np.diag(1. / np.sum(em_, axis=1)) @ em_
     return s0_, T_, em_, extra_info_dict
 
 
@@ -150,9 +151,10 @@ def load_phmm(model):
     # WOW, this means this is a kernel for unaligned sequences!
 
     s0 = np.zeros(N)
-    s0[0] = model.start_step.p_emission_to_insertion
-    s0[2] = model.start_step.p_emission_to_emission
-    s0[3] = model.start_step.p_emission_to_deletion
+    s0[0] = model.start_step.p_emission_to_insertion  # i0
+    # i1 has 0 chance of being starting state
+    s0[2] = model.start_step.p_emission_to_emission  # m1
+    s0[3] = model.start_step.p_emission_to_deletion  # d1
     np.testing.assert_almost_equal(np.sum(s0), np.ones(1), decimal=5)
     em = np.zeros((N, O))  # ones for the silent states
     for i in range(O-1):
@@ -207,7 +209,9 @@ def load_phmm(model):
 
     try:
         np.testing.assert_almost_equal(np.sum(T, axis=1), np.ones(N), decimal=5)
+        # we don't check emissions here but above because we don't want to include the delete states
         #np.testing.assert_almost_equal(np.sum(em, axis=1), np.ones(N), decimal=5)
+        np.testing.assert_almost_equal(np.sum(s0), np.ones(1), decimal=5)
     except Exception as e:
         logging.exception(e)
         raise e

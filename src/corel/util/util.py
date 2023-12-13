@@ -10,12 +10,16 @@ from corel.util.constants import PADDING_SYMBOL_INDEX
 
 def get_amino_acid_integer_mapping_from_info(setup_info: ProblemSetupInformation):
     alphabet = setup_info.get_alphabet()
-    return {alphabet[i]: i+1 for i in range(len(alphabet))}
+    offset = 0 if setup_info.sequences_are_aligned() else 1
+    assert(PADDING_SYMBOL_INDEX == 0)
+    return {alphabet[i]: i+offset for i in range(len(alphabet))}
 
 
 def transform_string_sequences_to_integer_arrays(train_x_, L, amino_acid_integer_mapping):
-    assert(PADDING_SYMBOL_INDEX not in amino_acid_integer_mapping.values())
+    # the assertion below is only valid if sequences are not aligned
+    #assert(PADDING_SYMBOL_INDEX not in amino_acid_integer_mapping.values())
     train_x = np.zeros([len(train_x_), L], dtype=int)
+    assert(PADDING_SYMBOL_INDEX == 0)
     for i in range(len(train_x_)):
         seq = train_x_[i]
         len_seq = len(seq)

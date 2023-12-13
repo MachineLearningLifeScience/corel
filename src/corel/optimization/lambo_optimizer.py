@@ -17,7 +17,7 @@ This optimization algorithm imitates LamBO. We just explore all single site muta
 """
 
 
-def mutate_candidate(seq, acquisition_function, copy=lambda x: x.copy(), trials=10):
+def mutate_candidate(seq, acquisition_function, copy=lambda x: x.copy(), trials=1):
     AA = acquisition_function._model.AA  # get from ac
     bestk = KeepKBest(1, copy=copy)
     positions = np.random.randint(0, _padded_until(seq), trials)
@@ -50,7 +50,7 @@ def make_lambo_optimizer(dataset=None, batch_evaluations=1):
         # TODO: THIS DOES NOT WORK!
         raise NotImplementedError("this does not work! I need the most recent data!")
         observations_handle = lambda ac: dataset
-
+    # TODO: if _model / acquisition function fails, remove proposals
     def lambo_optimizer(search_space: SearchSpaceType, acquisition_function) -> tf.Tensor:
         _, idx_ = non_dominated(observations_handle(acquisition_function))
         proposal_seqs = inputs_handle(acquisition_function)[idx_]
