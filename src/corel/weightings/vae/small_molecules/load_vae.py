@@ -27,6 +27,6 @@ def load_vae() -> VAESelfies:
     weights_path = ROOT_DIR / "results" / "models" / "vae_z_2_zinc250k.ckpt"
 
     # Loading the weights
-    vae.model.load_weights(weights_path)
+    vae.model.load_weights(weights_path).expect_partial()
 
     return vae

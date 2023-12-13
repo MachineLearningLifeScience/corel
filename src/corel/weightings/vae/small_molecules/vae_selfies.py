@@ -7,6 +7,7 @@ from typing import List, Tuple
 
 import tensorflow as tf
 import tensorflow_probability as tfp
+from gpflow import default_float
 
 from corel.weightings.vae.base import (
     LATENT_DIM,
@@ -17,6 +18,7 @@ from corel.weightings.vae.base import (
     PRIOR_SCALE,
     OFFDIAG,
 )
+from corel.weightings.abstract_weighting import AbstractWeighting
 
 tfk = tf.keras
 tfkl = tf.keras.layers
@@ -146,7 +148,7 @@ class CategoricalDecoder:
         )
 
 
-class VAESelfies:
+class VAESelfies(AbstractWeighting):
     def __init__(
         self,
         z_dim: int,
@@ -196,6 +198,31 @@ class VAESelfies:
     @staticmethod
     def neg_ll(x, model):
         return -model.log_prob(x)
+
+    def expectation(self, p: tf.Tensor) -> tf.Tensor:
+        """
+        Computes E_{p(x|z=0)}[p], which is the weighting
+        of a given probability distribution used in the
+        Hellinger kernel.
+
+        (Taken from the vae weighting class in the CBAS folder)
+        """
+        if p.dtype.is_integer:
+            raise NotImplementedError(
+                "obtain number of amino acids and make sure that permutation "
+                "is correct"
+            )
+            p_ = tf.one_hot(p, 20, dtype=default_float(), axis=-1)
+        else:
+            p_ = p
+        assert len(p_.shape) == 3
+
+        return tf.expand_dims(
+            tf.reduce_prod(tf.reduce_sum(self.p0 * p_, axis=-1), axis=-1), -1
+        )
+
+    def __call__(self, x: tf.Tensor) -> tf.Tensor:
+        return self.expectation(x)
 
 
 if __name__ == "__main__":

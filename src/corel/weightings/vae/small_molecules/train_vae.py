@@ -44,7 +44,7 @@ if __name__ == "__main__":
     all_onehot_arrays = tf.random.shuffle(all_onehot_arrays, seed=SEED)
 
     # TEST: let's see if we can overfit to a couple of batches
-    all_onehot_arrays = all_onehot_arrays[:2 * BATCHSIZE]
+    # all_onehot_arrays = all_onehot_arrays[:2 * BATCHSIZE]
 
     # Splitting into train and test (80/20)
     train_size = int(0.8 * len(all_onehot_arrays))
