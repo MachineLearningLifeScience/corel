@@ -7,6 +7,7 @@ on Zinc250k, using a VAE for weighting the Hellinger kernel.
 import numpy as np
 import tensorflow as tf
 
+from trieste.acquisition import ExpectedImprovement
 from trieste.acquisition import ExpectedHypervolumeImprovement
 from trieste.bayesian_optimizer import BayesianOptimizer
 from trieste.bayesian_optimizer import OptimizationResult
@@ -68,7 +69,7 @@ def main() -> OptimizationResult:
         # TODO: add model parameters as context to be tracked by observer here?
         return tf.constant(f(seqs, context))
 
-    trieste_observer = mk_observer(f)
+    trieste_observer = mk_observer(f_)
 
     # Defining the initial dataset
     # The initial x values (expected to be integer tensors [b, L])

@@ -205,6 +205,14 @@ class VAESelfies(AbstractWeighting):
         of a given probability distribution used in the
         Hellinger kernel.
 
+        p should be a vector of shape [b, L, V], where b
+        is the batch size, L is the sequence length and V
+        is the number of categories.
+
+        The output should be a vector of shape [b, 1], where
+        we compute sum_x p(x) p_0(x) w.r.t a given base distribution
+        (which can be e.g. Cat(x|z=0) or Cat(x|z=enc(wt))).
+
         (Taken from the vae weighting class in the CBAS folder)
         """
         if p.dtype.is_integer:
