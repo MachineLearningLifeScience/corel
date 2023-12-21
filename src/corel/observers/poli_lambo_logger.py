@@ -13,7 +13,8 @@ from poli.core.problem_setup_information import ProblemSetupInformation
 from poli.core.registry import set_observer
 from poli.core.util.abstract_observer import AbstractObserver
 
-from lambo.optimizers.pymoo import Normalizer
+#from lambo.optimizers.pymoo import Normalizer
+from corel.observers.lambo_imports.normalizer import Normalizer
 import corel
 from corel.observers import HD_PREV, HD_WT, HD_MIN, SEQUENCE, BLACKBOX, MIN_BLACKBOX, ABS_HYPER_VOLUME, REL_HYPER_VOLUME
 from corel.observers.logger import log, initialize_logger, finish, log_sequence
