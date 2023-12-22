@@ -8,7 +8,7 @@ from gpflow.kernels import Kernel
 from gpflow.utilities import positive
 from gpflow.utilities import print_summary
 
-from corel.util import handle_batch_shape
+from corel.util.util import handle_batch_shape
 from corel.kernel.hellinger_reference import HellingerReference
 
 
