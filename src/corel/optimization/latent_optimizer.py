@@ -1,6 +1,7 @@
 __author__ = 'Simon Bartels'
 
 import warnings
+from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
@@ -11,6 +12,9 @@ from trieste.space import SearchSpaceType, TaggedProductSearchSpace, Box
 from tensorflow_probability.python.distributions import Categorical
 
 from corel.util.k_best import KeepKBest
+from corel.weightings.vae.cbas.cbas_factory import CBASVAEFactory
+
+
 #from corel.weightings.vae.cbas_vae_wrapper import CBASVAEWrapper
 
 
@@ -22,9 +26,7 @@ class ContinuousLatentSpaceParameterizationOptimizerFactory:
         self.samples_from_proposal = samples_from_proposal
         self.L = problem_info.get_max_sequence_length()
         self.AA = len(problem_info.get_alphabet())
-        assert(problem_info.get_problem_name() == "FLUORESCENCE")
-        from corel.weightings.vae.cbas.cbas_vae_wrapper import CBASVAEWrapper
-        self.vae = CBASVAEWrapper(AA=self.AA, L=self.L, prefix="experiments/assets/vaes/gfp")
+        self.vae = CBASVAEFactory().create(problem_info)
 
     def create(self):
         def latent_optimizer(search_space: SearchSpaceType, acquisition_function) -> tf.Tensor:

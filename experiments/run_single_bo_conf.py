@@ -3,6 +3,7 @@ import random
 import tensorflow as tf
 import numpy as np
 import poli
+from gpflow import default_float
 from poli import objective_factory
 from poli.core.abstract_black_box import AbstractBlackBox
 from poli.core.problem_setup_information import ProblemSetupInformation
@@ -24,7 +25,7 @@ from corel.trieste.custom_batch_acquisition_rule import CustomBatchEfficientGlob
 from corel.util.constants import PADDING_SYMBOL_INDEX, BATCH_SIZE
 from corel.util.util import get_amino_acid_integer_mapping_from_info, transform_string_sequences_to_integer_arrays
 from corel.weightings.hmm.hmm_factory import HMMFactory
-from corel.weightings.vae.cbas.cbas_factory import CBASVAEFactory
+from corel.weightings.vae.cbas.cbas_factory import CBASVAEFactory, CBASVAEWeightingFactory
 from corel.weightings.vae.cbas.cbas_vae_wrapper import CBASVAEWrapper
 
 # from experiments.config.problem_mappings import hmm_problem_model_mapping
@@ -78,7 +79,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
     observer = mk_observer(blackbox)
     amino_acid_space = DiscreteSearchSpace(tf.expand_dims(tf.range(AA), axis=-1))
     search_space = TaggedProductSearchSpace(L * [amino_acid_space])
-    initial_data = Dataset(query_points=tf.squeeze(tf.constant(train_x)), observations=tf.constant(train_obj))
+    initial_data = Dataset(query_points=tf.squeeze(tf.constant(train_x)), observations=tf.constant(train_obj, dtype=default_float()))
     bo = BayesianOptimizer(observer, search_space)
     if train_obj.shape[1] == 1:
         # use expected improvement for single task objectives...
@@ -89,7 +90,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
         ei = ExpectedHypervolumeImprovement()
     else:
         raise RuntimeError("What kind of objective is that?!")
-    rule = CustomBatchEfficientGlobalOptimization(optimizer=optimizer_factory(batch_evaluations=batch_evaluations), builder=ei, num_query_points=batch_evaluations)
+    rule = CustomBatchEfficientGlobalOptimization(optimizer=optimizer_factory(setup_info, batch_evaluations=batch_evaluations), builder=ei, num_query_points=batch_evaluations)
     weighting = weighting_factory.create(setup_info)
     #model = TrainableModelStack(*[(ProteinModel(weighting, AA=AA), 1) for _ in range(train_obj.shape[1])])
     model = ProteinModel(weighting, AA)
@@ -110,8 +111,8 @@ if __name__ == '__main__':
     #problem = "foldx_rfp_lambo"
     #optimizer_factory = make_lambo_optimizer
     #weighting_factory = HMMFactory(hmm_problem_model_mapping[problem], problem)
-    problem = "FLUORESCENCE"
+    problem = "gfp_cbas"
     optimizer_factory = lambda problem_info, batch_evaluations: ContinuousLatentSpaceParameterizationOptimizerFactory(problem_info, batch_size=batch_evaluations).create()
-    weighting_factory = CBASVAEFactory()
+    weighting_factory = CBASVAEWeightingFactory()
     run_single_bo_conf(problem, 32, weighting_factory, optimizer_factory,
                        seed=0, batch_evaluations=16)

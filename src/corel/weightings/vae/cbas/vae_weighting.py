@@ -4,13 +4,11 @@ import tensorflow as tf
 from gpflow import default_float
 
 from corel.weightings.abstract_weighting import AbstractWeighting
-from corel.weightings.vae.cbas_vae_wrapper import CBASVAEWrapper
+from corel.weightings.vae.cbas.cbas_vae_wrapper import CBASVAEWrapper
 
 
 class VAEWeighting(AbstractWeighting):
-    def __init__(self, AA, L, prefix):
-        #raise NotImplementedError("Make sure implementation is correct")
-        vae = CBASVAEWrapper(AA=AA, L=L, prefix=prefix)
+    def __init__(self, vae: CBASVAEWrapper):
         # TODO: average over more distributions
         latent_dim = vae.vae.latentDim_
         self.p0 = vae.decode(tf.zeros([1, latent_dim]))
@@ -23,3 +21,6 @@ class VAEWeighting(AbstractWeighting):
             p_ = p
         assert(len(p_.shape) == 3)
         return tf.expand_dims(tf.reduce_prod(tf.reduce_sum(self.p0 * p_, axis=-1), axis=-1), -1)
+
+    def __call__(self, *args, **kwargs):
+        return self.expectation(*args, **kwargs)
