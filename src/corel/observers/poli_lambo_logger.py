@@ -141,21 +141,25 @@ class PoliLamboLogger(AbstractObserver):
         assert(self.step == 0)
 
         if y0.shape[1] > 1:
-            target_min = torch.min(y0, axis=0)
-            target_range = torch.max(y0, axis=0) - target_min
+            y0t = torch.Tensor(y0)
+
+            target_min = torch.min(y0t, dim=0)[0]
+            target_range = torch.max(y0t, dim=0)[0] - target_min
             self.lambo_transform = Normalizer(
                 loc=target_min + 0.5 * target_range,
                 scale=target_range / 2.,
             )
-            idx = is_non_dominated(-torch.Tensor(y0)).numpy()
+            # LamBO uses only sequences with known structure to compute the volume of the pareto front (ignoring other given observations)
+            value_range = 40
+            idx = is_non_dominated(-y0t[:value_range, ...])
             # RESET LamBO values
-            self.lambo_values = y0[idx, :].numpy().tolist()
+            self.lambo_values = y0[:value_range, ...][idx, ...].tolist()
             transformed_pareto_volume_ref_point, self.transform = get_pareto_reference_point(y0)
             self.transformed_pareto_volume_ref_point = torch.Tensor(transformed_pareto_volume_ref_point)
             self.initial_pareto_front_volume = self._compute_hyper_volume(y0)
             self.logger.log({ABS_HYPER_VOLUME: self.initial_pareto_front_volume}, step=self.step)
-            lambo_norm_pareto_targets = self.lambo_transform(y0[idx, ...])
-            self.transformed_lambo_ref_point = -infer_reference_point(-torch.tensor(lambo_norm_pareto_targets)).numpy()
+            lambo_norm_pareto_targets = self.lambo_transform(torch.Tensor(self.lambo_values))
+            self.transformed_lambo_ref_point = -infer_reference_point(-torch.tensor(lambo_norm_pareto_targets))
             lambo_initial_pareto_front_volume = self._compute_lambo_hyper_volume(np.array(self.lambo_values))
             self.logger.log({"LAMBO_ABS_HYPER_VOLUME": lambo_initial_pareto_front_volume}, step=self.step)
             self.lambo_initial_pareto_front_volume = lambo_initial_pareto_front_volume

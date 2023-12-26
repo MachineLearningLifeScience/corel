@@ -21,17 +21,22 @@ class PoliLamboLoggerTestCase(unittest.TestCase):
         )
         observer = TestPoliLamboLogger()
         observer.initialize_observer(problem_info, dict(), x0, y0, seed)
-        np.testing.assert_approx_equal(observer.transformed_lambo_ref_point.numpy(), np.array([-0.11583198, 0.46189176]))
         lambo_values = np.array([
-             [-11189.00587946, -39.8155],
              [-10376.84011515, -71.4708],
              [-10820.91136186, -55.6143],
              [-11558.62762577,  29.6978],
+             [-11189.00587946, -39.8155],
              [-11445.82982225, -27.9617],
              [-10591.87684184, -61.8757]
         ])
-        np.testing.assert_approx_equal(np.array(observer.lambo_values), lambo_values)
-        self.assertAlmostEqual(0.6751, observer.lambo_initial_pareto_front_volume)  # add assertion here
+        lambo_values.sort(axis=0)
+        print(lambo_values)
+        lambo_values_ = np.array(observer.lambo_values)
+        lambo_values_.sort(axis=0)
+        print(lambo_values_)
+        np.testing.assert_array_almost_equal(lambo_values_, lambo_values)
+        np.testing.assert_array_almost_equal(observer.transformed_lambo_ref_point.numpy(), np.array([-0.11583198, 0.46189176]))
+        self.assertAlmostEqual(0.675107, observer.lambo_initial_pareto_front_volume)  # add assertion here
 
 
 class TestPoliLamboLogger(PoliLamboLogger):
