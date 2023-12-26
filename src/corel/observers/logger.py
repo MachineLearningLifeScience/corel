@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from corel.observers import SEQUENCE, SEED
-
+from corel.observers.AbstractLogger import AbstractLogger
 
 EXPERIMENT_PATH = Path(Path(__file__).parents[3], "results/mlruns")
 
@@ -55,3 +55,17 @@ def log_sequence(seq, step=None, verbose=False):
 
 def finish():
     mlflow.end_run()
+
+
+class MLFlowLogger(AbstractLogger):
+    def initialize_logger(self, problem_setup_info, caller_info, seed, run_id=None):
+        return initialize_logger(problem_setup_info, caller_info, seed, run_id=run_id)
+
+    def finish(self):
+        return finish()
+
+    def log(self, d: dict, step: int, verbose=True):
+        return log(d, step, verbose)
+
+    def log_sequence(self, seq, step=None, verbose=False):
+        return log_sequence(seq, step, verbose)

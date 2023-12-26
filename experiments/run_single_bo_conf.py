@@ -3,6 +3,7 @@ import random
 import tensorflow as tf
 import numpy as np
 import poli
+from gpflow import default_float
 from poli import objective_factory
 from poli.core.abstract_black_box import AbstractBlackBox
 from poli.core.problem_setup_information import ProblemSetupInformation
@@ -15,14 +16,18 @@ from trieste.bayesian_optimizer import BayesianOptimizer
 from trieste.objectives.utils import mk_observer
 
 from corel.optimization.lambo_optimizer import make_lambo_optimizer
+from corel.optimization.latent_optimizer import ContinuousLatentSpaceParameterizationOptimizerFactory
 from corel.optimization.pareto_frontier_explorer import make_pareto_frontier_explorer
 from corel.optimization.randomized_pareto_frontier_explorer import make_randomized_pareto_frontier_explorer
-from corel.optimization.simplex_optimizer import simplex_optimizer, make_simplex_optimizer
+from corel.optimization.simplex_optimizer import make_simplex_optimizer
 from corel.protein_model import ProteinModel
 from corel.trieste.custom_batch_acquisition_rule import CustomBatchEfficientGlobalOptimization
 from corel.util.constants import PADDING_SYMBOL_INDEX, BATCH_SIZE
 from corel.util.util import get_amino_acid_integer_mapping_from_info, transform_string_sequences_to_integer_arrays
 from corel.weightings.hmm.hmm_factory import HMMFactory
+from corel.weightings.vae.cbas.cbas_factory import CBASVAEFactory, CBASVAEWeightingFactory
+from corel.weightings.vae.cbas.cbas_vae_wrapper import CBASVAEWrapper
+
 # from experiments.config.problem_mappings import hmm_problem_model_mapping
 # TODO: import this from experiments.config
 hmm_problem_model_mapping = {
@@ -45,45 +50,10 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
     caller_info = dict()
     caller_info["DEBUG"] = DEBUG  # report if DEBUG flag is set
     caller_info[BATCH_SIZE] = batch_evaluations
-    if not DEBUG:
-        setup_info, blackbox_, train_x_, train_obj, run_info = objective_factory.create(problem, seed=seed,
-                                                                                        caller_info=caller_info,
-                                                                                        force_isolation=True,
-                                                                                        observer=ExternalObserver())
-    else:
-        AMINO_ACIDS = [
-            "A",
-            "R",
-            "N",
-            "D",
-            "C",
-            "E",
-            "Q",
-            "G",
-            "H",
-            "I",
-            "L",
-            "K",
-            "M",
-            "F",
-            "P",
-            "S",
-            "T",
-            "W",
-            "Y",
-            "V",
-        ]
-        setup_info = ProblemSetupInformation(problem, 244, False, AMINO_ACIDS)
-        class DebugBlackBox(AbstractBlackBox):
-            def _black_box(self, x, context=None):
-                return np.random.randn(x.shape[0], 2)
-        blackbox_ = DebugBlackBox(setup_info)
-        train_x_ = ["ARN", "DCEE"]
-        train_obj = np.random.randn(2, 2)
-
-    #train_x_ = train_x_[:4]
-    #train_obj = train_obj[:4, ...]
-
+    setup_info, blackbox_, train_x_, train_obj, run_info = objective_factory.create(problem, seed=seed,
+                                                                                    caller_info=caller_info,
+                                                                                    force_isolation=True,
+                                                                                    observer=None)# ExternalObserver())
     # make tensorflow wrapper for problem
     L = setup_info.get_max_sequence_length()
     AA = len(setup_info.get_alphabet())
@@ -91,7 +61,8 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
         AA = AA + 1  # add one index for a padding symbol
     amino_acid_integer_mapping = get_amino_acid_integer_mapping_from_info(setup_info)
     integer_amino_acid_mapping = {amino_acid_integer_mapping[a]: a for a in amino_acid_integer_mapping.keys()}
-    assert(PADDING_SYMBOL_INDEX not in amino_acid_integer_mapping.values())
+    if not setup_info.sequences_are_aligned():
+        assert(PADDING_SYMBOL_INDEX not in amino_acid_integer_mapping.values())
 
     def blackbox(x, context=None):
         x_ = x.numpy()
@@ -108,7 +79,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
     observer = mk_observer(blackbox)
     amino_acid_space = DiscreteSearchSpace(tf.expand_dims(tf.range(AA), axis=-1))
     search_space = TaggedProductSearchSpace(L * [amino_acid_space])
-    initial_data = Dataset(query_points=tf.squeeze(tf.constant(train_x)), observations=tf.constant(train_obj))
+    initial_data = Dataset(query_points=tf.squeeze(tf.constant(train_x)), observations=tf.constant(train_obj, dtype=default_float()))
     bo = BayesianOptimizer(observer, search_space)
     if train_obj.shape[1] == 1:
         # use expected improvement for single task objectives...
@@ -119,7 +90,7 @@ def run_single_bo_conf(problem: str, max_blackbox_evaluations: int,
         ei = ExpectedHypervolumeImprovement()
     else:
         raise RuntimeError("What kind of objective is that?!")
-    rule = CustomBatchEfficientGlobalOptimization(optimizer=optimizer_factory(batch_evaluations=batch_evaluations), builder=ei, num_query_points=batch_evaluations)
+    rule = CustomBatchEfficientGlobalOptimization(optimizer=optimizer_factory(setup_info, batch_evaluations=batch_evaluations), builder=ei, num_query_points=batch_evaluations)
     weighting = weighting_factory.create(setup_info)
     #model = TrainableModelStack(*[(ProteinModel(weighting, AA=AA), 1) for _ in range(train_obj.shape[1])])
     model = ProteinModel(weighting, AA)
@@ -137,7 +108,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     tf.config.run_functions_eagerly(run_eagerly=True)
     #_call_run(**vars(args))
-    problem = "foldx_rfp_lambo"
+    #problem = "foldx_rfp_lambo"
     #optimizer_factory = make_lambo_optimizer
-    run_single_bo_conf(problem, 32, HMMFactory(hmm_problem_model_mapping[problem], problem), optimizer_factory,
+    #weighting_factory = HMMFactory(hmm_problem_model_mapping[problem], problem)
+    problem = "gfp_cbas"
+    optimizer_factory = lambda problem_info, batch_evaluations: ContinuousLatentSpaceParameterizationOptimizerFactory(problem_info, batch_size=batch_evaluations).create()
+    weighting_factory = CBASVAEWeightingFactory()
+    run_single_bo_conf(problem, 32, weighting_factory, optimizer_factory,
                        seed=0, batch_evaluations=16)

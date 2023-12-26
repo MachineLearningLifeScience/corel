@@ -2,7 +2,7 @@ import os
 import tensorflow as tf
 from tensorflow.python.ops.numpy_ops import default_float_type
 
-from corel.weightings.vae.make_vae import build_vae
+from corel.weightings.vae.cbas.make_vae import build_vae
 
 
 class CBASVAEWrapper:

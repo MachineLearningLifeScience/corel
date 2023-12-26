@@ -4,7 +4,7 @@ import tensorflow as tf
 from typing import Optional
 import numpy as np
 
-from corel.util import handle_batch_shape
+from corel.util.util import handle_batch_shape
 from corel.kernel import Hellinger
 
 

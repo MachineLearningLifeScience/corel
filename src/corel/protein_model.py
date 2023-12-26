@@ -2,7 +2,7 @@ __author__ = 'Simon Bartels'
 
 import logging
 import warnings
-from typing import Tuple
+from typing import Tuple, Optional
 import numpy as np
 import tensorflow as tf
 from gpflow import default_float, set_trainable
@@ -34,6 +34,9 @@ class ProteinModel(TrainableProbabilisticModel):
         self.kernel_means = None
         self.dataset = None
         self.log_noises = None
+
+    def log(self, dataset: Optional[Dataset] = None) -> None:
+        pass
 
     def _predict(self, query_points: TensorType) -> List[List[TensorType]]:
         assert(self._optimized)

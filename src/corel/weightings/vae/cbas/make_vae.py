@@ -5,7 +5,7 @@ CBAS VAE architecture and training from existing models.
 import os
 import numpy as np
 
-from corel.weightings.vae.losses import summed_categorical_crossentropy, identity_loss
+from corel.weightings.vae.cbas.losses import summed_categorical_crossentropy, identity_loss
 #from cbas_vae.util import get_experimental_X_y
 
 # added by Simon

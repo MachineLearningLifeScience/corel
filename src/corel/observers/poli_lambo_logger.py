@@ -1,4 +1,7 @@
 __author__ = 'Simon Bartels'
+
+from corel.observers.logger import MLFlowLogger
+
 """
 This Observer requires a lambo-specific environment with [lambo ; torch ; botorch] installed.
 Use fx poli__lambo environment or install the environment specified in https://github.com/samuelstanton/lambo/tree/main/lambo
@@ -17,7 +20,7 @@ from poli.core.util.abstract_observer import AbstractObserver
 from corel.observers.lambo_imports.normalizer import Normalizer
 import corel
 from corel.observers import HD_PREV, HD_WT, HD_MIN, SEQUENCE, BLACKBOX, MIN_BLACKBOX, ABS_HYPER_VOLUME, REL_HYPER_VOLUME
-from corel.observers.logger import log, initialize_logger, finish, log_sequence
+#from corel.observers.logger import log, initialize_logger, finish, log_sequence
 
 
 def get_pareto_reference_point(y0: np.ndarray) -> Tuple[torch.Tensor, Normalizer]:
@@ -51,15 +54,17 @@ class PoliLamboLogger(AbstractObserver):
         self.transform = None
 
         # the following values are specific to the LamBO RFP problem
-        target_min = torch.tensor([-12008.24754087, -74.7978])
-        target_range = torch.tensor([3957.58754182, 156.8002])
-        self.lambo_transform = Normalizer(
-            loc=target_min + 0.5 * target_range,
-            scale=target_range / 2.,
-        )
-        self.transformed_lambo_ref_point = torch.tensor([-0.11583198, 0.46189176])
-        self.lambo_initial_pareto_front_volume = 0.6751
+        #target_min = torch.tensor([-12008.24754087, -74.7978])
+        #target_range = torch.tensor([3957.58754182, 156.8002])
+        #self.lambo_transform = Normalizer(
+        #    loc=target_min + 0.5 * target_range,
+        #    scale=target_range / 2.,
+        #)
+        self.lambo_transform = None
+        self.transformed_lambo_ref_point = None #torch.tensor([-0.11583198, 0.46189176])
+        self.lambo_initial_pareto_front_volume = None  # 0.6751
         self.lambo_values = []
+        self.logger = None
 
     def observe(self, x: np.ndarray, y: np.ndarray, context=None) -> None:
         assert(y.shape[0] == 1)  # can process only one datapoint at a time
@@ -68,34 +73,38 @@ class PoliLamboLogger(AbstractObserver):
             self.sequences.append(x)
             self.vals.append(y[0, :])
             self.lambo_values.append(y[0, :])
-            log({BLACKBOX + str(i): y[0, i] for i in range(y.shape[1])}, step=self.step)
+            self.logger.log({BLACKBOX + str(i): y[0, i] for i in range(y.shape[1])}, step=self.step)
             ymat = np.array(self.vals)
             mins = np.min(ymat, axis=0)
             assert(mins.shape[0] == y.shape[1])
-            log({MIN_BLACKBOX + str(i): mins[i] for i in range(y.shape[1])}, step=self.step)
+            self.logger.log({MIN_BLACKBOX + str(i): mins[i] for i in range(y.shape[1])}, step=self.step)
             if self.info.sequences_are_aligned() and len(self.sequences) > 1:
                 # TODO: monitor statistics for the unaligned case
-                log({HD_PREV: np.sum((self.sequences[-2] - x) != 0),
+                self.logger.log({HD_PREV: np.sum((self.sequences[-2] - x) != 0),
                      HD_WT: np.sum((self.wt - x) != 0),
                      HD_MIN: np.min(np.sum(np.vstack(self.sequences[:-1]) - x != 0, axis=-1)),
                      }, step=self.step, verbose=True)
             if self.transformed_pareto_volume_ref_point is not None and y.shape[1] > 1:
                 new_volume = self._compute_hyper_volume(ymat)
-                log({ABS_HYPER_VOLUME: new_volume, REL_HYPER_VOLUME: new_volume / self.initial_pareto_front_volume},
+                self.logger.log({ABS_HYPER_VOLUME: new_volume, REL_HYPER_VOLUME: new_volume / self.initial_pareto_front_volume},
                     step=self.step)
-                log({"LAMBO_REL_HYPER_VOLUME": self._compute_lambo_hyper_volume(np.array(self.lambo_values)) / self.lambo_initial_pareto_front_volume},
+                self.logger.log({"LAMBO_REL_HYPER_VOLUME": self._compute_lambo_hyper_volume(np.array(self.lambo_values)) / self.lambo_initial_pareto_front_volume},
                     step=self.step)
-            log_sequence(x, step=self.step, verbose=True)
+            self.logger.log_sequence(x, step=self.step, verbose=True)
 
     def initialize_observer(self, problem_setup_info: ProblemSetupInformation, caller_info: dict, x0, y0, seed) -> object:
+        self._initialize_logger()
         self.wt = x0[:1, ...]
         self.info = problem_setup_info
-        run = initialize_logger(problem_setup_info, caller_info, seed)
+        run = self.logger.initialize_logger(problem_setup_info, caller_info, seed)
         self._add_initial_observations(x0, y0)
         # when not calling from here, returning the run would cause an exception!
         if "JSD_METHOD" in caller_info.keys():
             return run
         return None
+
+    def _initialize_logger(self):
+        self.logger = MLFlowLogger()
 
     def _compute_hyper_volume(self, all_y: np.ndarray) -> float:
         """
@@ -129,27 +138,30 @@ class PoliLamboLogger(AbstractObserver):
         for i in range(y0.shape[0]):
             self.observe(x0[i:i+1, ...], y0[i:i + 1, ...])
         # the assertion assumes that the step increase is executed in the beginning of #observe
-        # RESET LamBO values
-        self.lambo_values = [
-             [-11189.00587946, -39.8155],
-             [-10376.84011515, -71.4708],
-             [-10820.91136186, -55.6143],
-             [-11558.62762577,  29.6978],
-             [-11445.82982225, -27.9617],
-             [-10591.87684184, -61.8757]
-        ]
         assert(self.step == 0)
+
         if y0.shape[1] > 1:
+            target_min = torch.min(y0, axis=0)
+            target_range = torch.max(y0, axis=0) - target_min
+            self.lambo_transform = Normalizer(
+                loc=target_min + 0.5 * target_range,
+                scale=target_range / 2.,
+            )
+            idx = is_non_dominated(-torch.Tensor(y0)).numpy()
+            # RESET LamBO values
+            self.lambo_values = y0[idx, :].numpy().tolist()
             transformed_pareto_volume_ref_point, self.transform = get_pareto_reference_point(y0)
             self.transformed_pareto_volume_ref_point = torch.Tensor(transformed_pareto_volume_ref_point)
             self.initial_pareto_front_volume = self._compute_hyper_volume(y0)
-            log({ABS_HYPER_VOLUME: self.initial_pareto_front_volume}, step=self.step)
+            self.logger.log({ABS_HYPER_VOLUME: self.initial_pareto_front_volume}, step=self.step)
+            lambo_norm_pareto_targets = self.lambo_transform(y0[idx, ...])
+            self.transformed_lambo_ref_point = -infer_reference_point(-torch.tensor(lambo_norm_pareto_targets)).numpy()
             lambo_initial_pareto_front_volume = self._compute_lambo_hyper_volume(np.array(self.lambo_values))
-            log({"LAMBO_ABS_HYPER_VOLUME": lambo_initial_pareto_front_volume}, step=self.step)
+            self.logger.log({"LAMBO_ABS_HYPER_VOLUME": lambo_initial_pareto_front_volume}, step=self.step)
             self.lambo_initial_pareto_front_volume = lambo_initial_pareto_front_volume
 
     def finish(self) -> None:
-        finish()
+        self.logger.finish()
 
 
 if __name__ == '__main__':
