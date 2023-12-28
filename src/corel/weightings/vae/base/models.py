@@ -1,8 +1,9 @@
 from typing import List
 from typing import Any
 
-import tensorflow.compat.v2 as tf
-tf.enable_v2_behavior()
+import tensorflow as tf
+# import tensorflow.compat.v2 as tf
+# tf.enable_v2_behavior()
 
 import tensorflow_datasets as tfds
 import tensorflow_probability as tfp
