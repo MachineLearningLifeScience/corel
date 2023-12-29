@@ -1,7 +1,7 @@
 __author__ = 'Simon Bartels'
 
 from typing import Callable
-
+from typing import Tuple
 import numpy as np
 
 
@@ -32,7 +32,7 @@ class KeepKBest:
             return idx
         return -1
 
-    def get(self):
+    def get(self) -> Tuple[np.ndarray, np.ndarray]:
         assert(self.vals.shape[0] == self.k)
         assert(self.elements.shape[0] == self.k)
         return self.elements, self.vals
