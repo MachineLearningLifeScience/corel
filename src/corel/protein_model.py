@@ -82,6 +82,8 @@ class ProteinModel(TrainableProbabilisticModel):
         mean = tf.concat([temp[i] @ self.alphas[i] + self.kernel_means[i] for i in range(num_tasks)], axis=-1)
         # TODO: no noise, correct?
         variance = tf.concat([self.amplitudes[i] * (tf.ones([query_points.shape[0], 1], dtype=default_float()) - tf.expand_dims(tf.reduce_sum(tf.square(temp[i]), axis=-1), axis=1)) for i in range(num_tasks)], axis=-1)
+        if np.isnan(mean.numpy()[0][0]):
+            warnings.warn("Prediction is not valid!")
         return mean, variance
 
     def sample(self, query_points: TensorType, num_samples: int) -> TensorType:

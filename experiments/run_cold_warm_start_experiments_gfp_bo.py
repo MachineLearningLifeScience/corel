@@ -1,6 +1,7 @@
 import argparse
 import random
 from typing import Callable
+import warnings
 import numpy as np
 import tensorflow as tf
 tf.compat.v1.enable_eager_execution() # enforce eager execution context
@@ -117,6 +118,8 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
             context = model.get_context()
         seqs = np.array([list(_s) for _s in sequences])
         f_batch = f(seqs, context) # batched calls
+        if np.isnan(f_batch[0][0]):
+            warnings.warn(f"{f.__class__.__name__} introduced NaN value!")
         return tf.constant(f_batch)
 
     X_train = transform_string_sequences_to_integer_arrays(x0, L, aa_int_mapping)
