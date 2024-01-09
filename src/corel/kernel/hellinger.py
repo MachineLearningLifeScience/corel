@@ -28,17 +28,15 @@ class Hellinger(HellingerReference):
             _X2 = _X
         else:
             _X2 = handle_batch_shape(X2)
-        if len(X.shape) == 3: # if [1; N ; D] => [1; N ; L ; cat]
-            _X = self.restore(X)
-        if len(X2.shape) == 3:
-            _X2 = self.restore(X2)
-        assert _X.shape[-1] == self.AA and _X.shape[-2] == self.L
-        assert _X2.shape[-1] == self.AA and _X2.shape[-2] == self.L
+        _X = self.restore(X)
+        _X2 = self.restore(X2)
+        assert _X.shape[-1] == self.AA and _X.shape[-2] == self.L, "Input vector X last two dimensions not consistent! (L, AA)"
+        assert _X2.shape[-1] == self.AA and _X2.shape[-2] == self.L, "Input vector X2 last two dimensions not consistent! (L, AA)"
 
         M = self._H(_X, _X2)
 
         if len(X.shape) >= 3 or len(X2.shape) >= 3:
-            if X.shape == X2.shape:
+            if X is X2:
                 M = tf.reshape(M, shape=(1, *M.shape)) # TODO: check shapes and correct
             else:
                 M = tf.reshape(M, shape=(1, M.shape[0], 1, M.shape[1])) # adhere to [batch..., N1, batch..., N2]

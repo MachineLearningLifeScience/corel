@@ -16,11 +16,11 @@ class HellingerReference(Kernel):
         self.noise = gpflow.Parameter(noise, transform=positive()) # TODO: check against Kernel Interface
 
     def restore(self, ps: tf.Tensor) -> tf.Tensor:
-        ps = tf.squeeze(ps)
-        N = 1 if len(ps.shape) == 1 else ps.shape[0]
+        N = 1 if len(ps.shape) <= 2 else ps.shape[1]
         if ps.shape[-1] != self.AA:
-            return tf.reshape(ps, shape=(N, ps.shape[-1] // self.AA,  self.AA))
-        elif ps.shape[0] == N and ps.shape[1] == self.L and ps.shape[-1] == self.AA:
+            ps = tf.reshape(ps, shape=(N, ps.shape[-1] // self.AA,  self.AA))
+            return ps
+        elif ps.shape[0] == N and ps.shape[-2] == self.L and ps.shape[-1] == self.AA:
             return ps
         else:
             raise ValueError(f"Vector p shape incorrect! {ps.shape}")
