@@ -9,11 +9,12 @@ from corel.kernel import HellingerReference
 from corel.kernel import Hellinger
 from corel.kernel import WeightedHellinger
 import tensorflow as tf
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 # define test sequences and test alphabet and test weighting distributions
 SEED=12
 N = 20
+N2 = 7
 L = 15
 AA = 3
 np.random.seed(SEED)
@@ -23,7 +24,7 @@ simulated_decoding_distributions = np.stack([
      ])
 
 simulated_decoding_distributions_Y = np.stack([
-        np.random.dirichlet(np.ones(AA), L) for _ in range(N)
+        np.random.dirichlet(np.ones(AA), L) for _ in range(N2)
      ])
 
 single_decoding_point_dist = np.stack([
@@ -36,7 +37,7 @@ simulated_weighting_vec = np.random.dirichlet(np.ones(AA), L)
 @pytest.mark.parametrize("dist", [simulated_decoding_distributions, simulated_decoding_distributions_Y])
 def test_simulated_dist_is_probabilities(dist):
     summed_dist = np.sum(dist, axis=-1)
-    np.testing.assert_almost_equal(summed_dist, np.ones((N, L)))
+    np.testing.assert_almost_equal(summed_dist, np.ones_like(summed_dist))
     np.testing.assert_array_less(dist, np.ones_like(dist))
     np.testing.assert_array_less(np.zeros_like(dist), dist)
 
@@ -82,6 +83,25 @@ def naive_r(p_x: np.ndarray, q_y: np.ndarray):
     return np.sqrt(1 - dist_prod_sum_across_sequence)
 
 
+def naive_r_w_p(p_x, w):
+    """
+    p, q are probability distributions (ie. decoder distributions),
+    w is weighting distribution (ie. decoder out)
+    """
+    # assumption sequences x , y are of shape (L, |AA|) with L seq-length and |AA| size of alphabet
+    assert p_x.shape[0] == w.shape[0], "Input distributions inconsistent"
+    lhs_weighted_pq_values = []
+    for l in range(L):
+        alphabet_prod_vals = []
+        for a in range(AA):
+            weighted_pq_sum = w[l,a]*p_x[l,a]
+            alphabet_prod_vals.append(weighted_pq_sum)
+        summed_alphabet_vals = np.sum(alphabet_prod_vals)
+        lhs_weighted_pq_values.append(summed_alphabet_vals)
+    lhs_expectation = np.prod(lhs_weighted_pq_values) / 2
+    return lhs_expectation
+
+
 def naive_r_w(p_x: np.ndarray, q_y: np.ndarray, w: np.ndarray):
     """
     p, q are probability distributions (ie. decoder distributions),
@@ -93,28 +113,24 @@ def naive_r_w(p_x: np.ndarray, q_y: np.ndarray, w: np.ndarray):
         # the Hellinger distance between equal distributions is 0, but numerically this could fail
         # In that case summed_pq_vals_across_sequence can become slightly larger than 1 resulting in NaNs when taking the square root
         return 0.
+    return np.sqrt(naive_r_w_p(p_x, w) + naive_r_w_p(q_y, w) - naive_weighted_inner_product(p_x, q_y, w))
+
+
+def naive_weighted_inner_product(p_x: np.ndarray, q_y: np.ndarray, w: np.ndarray):
+    assert(len(p_x.shape) == 2)
     L = p_x.shape[0]
     AA = p_x.shape[1]
     summed_pq_vals_across_sequence = []
     for l in range(L):
         alphabet_prod_vals = []
         for a in range(AA):
-            pq_sqrt_prod = w[l,a] * np.sqrt(p_x[l,a]*q_y[l,a])
+            pq_sqrt_prod = w[l, a] * np.sqrt(p_x[l, a] * q_y[l, a])
             alphabet_prod_vals.append(pq_sqrt_prod)
         summed_alphabet_vals = np.sum(alphabet_prod_vals)
         summed_pq_vals_across_sequence.append(summed_alphabet_vals)
     dist_prod_sum_across_sequence = np.prod(summed_pq_vals_across_sequence)
     assert dist_prod_sum_across_sequence <= 1
-    lhs_weighted_pq_values = []
-    for l in range(L):
-        alphabet_prod_vals = []
-        for a in range(AA):
-            weighted_pq_sum = 1/2 * w[l,a]*p_x[l,a] + 1/2 * w[l,a]*q_y[l,a] 
-            alphabet_prod_vals.append(weighted_pq_sum)
-        summed_alphabet_vals = np.sum(alphabet_prod_vals)
-        lhs_weighted_pq_values.append(summed_alphabet_vals)
-    lhs_expectation = np.prod(lhs_weighted_pq_values)
-    return np.sqrt(lhs_expectation - dist_prod_sum_across_sequence)
+    return dist_prod_sum_across_sequence
 
 
 # implement naive Hellinger function
@@ -163,6 +179,22 @@ def naive_weighted_kernel(p: np.ndarray, q: np.ndarray, w: np.ndarray, theta: fl
 #     module_k = _k(module_dist, lengthscale=np.log(lam), log_noise=np.log(noise))
 #     naive_k = naive_kernel(simulated_decoding_distributions, simulated_decoding_distributions, theta=1, lam=lam)
 #     np.testing.assert_almost_equal(module_k, naive_k)
+
+@pytest.mark.parametrize("x,y", [(simulated_decoding_distributions, simulated_decoding_distributions),
+                            (simulated_decoding_distributions, simulated_decoding_distributions_Y),
+                            (simulated_decoding_distributions, single_decoding_point_dist)])
+def test_inner_product_implementation_naive(x,y):
+    lam = 1.
+    naive_whk_matrix = np.zeros([x.shape[0], y.shape[0]])
+    for i in range(x.shape[0]):
+        for j in range(y.shape[0]):
+            naive_whk_matrix[i, j] = naive_weighted_inner_product(x[i, ...], y[j, ...], simulated_weighting_vec)
+    whk = WeightedHellinger(w=tf.convert_to_tensor(simulated_weighting_vec), L=L, AA=AA, lengthscale=lam)
+    #x = tf.reshape(x, shape=(1, x.shape[0], x.shape[1]*x.shape[-1])) # GPflow inputs: [B, N, D] s.t. D=LxAA
+    #y = tf.reshape(y, shape=(1, y.shape[0], y.shape[1]*y.shape[-1]))
+    whk_matrix = whk._get_inner_product(tf.constant(x), tf.constant(y))
+    whk_matrix = tf.reshape(whk_matrix, shape=naive_whk_matrix.shape)
+    np.testing.assert_allclose(naive_whk_matrix, whk_matrix, rtol=1e-6)
 
 
 @pytest.mark.parametrize("x,y", [(simulated_decoding_distributions, simulated_decoding_distributions), 
@@ -240,6 +272,7 @@ def test_weighted_HK_output_handling(x,y):
 
 
 if __name__ == "__main__": # NOTE: added for the debugger to work!
+    test_inner_product_implementation_naive(x=simulated_decoding_distributions, y=simulated_decoding_distributions_Y)
     # test_kernel_implementation_naive(x=simulated_decoding_distributions, y=simulated_decoding_distributions)
     # test_kernel_implementation_naive(x=simulated_decoding_distributions, y=simulated_decoding_distributions_Y)
     # test_kernel_implementation_naive(x=simulated_decoding_distributions, y=single_decoding_point_dist)

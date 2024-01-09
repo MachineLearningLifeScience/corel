@@ -56,15 +56,15 @@ class WeightedHellinger(Hellinger):
         """
         Compute RHS of weighted HK equation, as weighting times sqrt(p[a_l,l] x q[a_l,l])
         """
-        M = tf.math.reduce_sum(self.w * tf.sqrt(X[None, ...] * X2[:, None, ...]), axis=-1)
+        # M = tf.math.reduce_sum(self.w * tf.sqrt(X[None, ...] * X2[:, None, ...]), axis=-1)
         # NOTE: the einsum and reduce_sum product should be equivalent
-        # M = tf.einsum('ali,bli->abl', tf.sqrt(self.w*X), tf.sqrt(self.w*X2)) 
+        M = tf.einsum('ali,bli->abl', tf.sqrt(self.w*X), tf.sqrt(self.w*X2))
         return tf.math.reduce_prod(M, axis=-1) # product over L, positions factorize
 
     def _compute_lhs(self, X: tf.Tensor, X2: tf.Tensor) -> tf.Tensor:
-        w_p = tf.math.reduce_sum(self.w*X[None, ...], axis=-1) / 2
-        w_q = tf.math.reduce_sum(self.w*X2[:,None, ...], axis=-1) / 2
-        return tf.math.reduce_prod(w_p+w_q, axis=-1)
+        w_p = tf.math.reduce_prod(tf.math.reduce_sum(self.w[None, ...]*X, axis=-1), axis=-1) / 2
+        w_q = tf.math.reduce_prod(tf.math.reduce_sum(self.w[None, ...]*X2, axis=-1), axis=-1) / 2
+        return w_p[:, None]+tf.transpose(w_q[:, None])
         # return tf.reshape(sum_prod_over_L, shape=(X.shape[0], X2.shape[0]))
 
     def _H(self, X: tf.Tensor, X2: tf.Tensor) -> tf.Tensor:
