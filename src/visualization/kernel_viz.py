@@ -30,7 +30,7 @@ def plotkernelsample_in_Ps(k: Kernel, lvm: object, ax, xmin: float=-3., xmax: fl
     ax.set_title(f"Samples {k.__class__.__name__}\n" + r"\in mathbf{P}", fontsize=21)
 
 
-def plotlatentspace_lvm(k: Kernel, lvm: object, ax, xmin: float=-2., xmax: float=2., stepsize=0.2):
+def plotlatentspace_lvm(k: Kernel, lvm: object, ax, xmin: float=-2., xmax: float=2., stepsize=0.2, vmin=0., vmax=1., cmap="viridis") -> object:
     xxyy = tf.convert_to_tensor(np.mgrid[xmin:xmax:stepsize, xmin:xmax:stepsize].reshape(2, -1).T)
     if "hellinger" not in k.__class__.__name__.lower():
         values = k(xxyy) # NOTE: This kernel is on latent space coordinates. One could consider a kernel on probits
@@ -40,10 +40,11 @@ def plotlatentspace_lvm(k: Kernel, lvm: object, ax, xmin: float=-2., xmax: float
         ps = tf.reshape(_ps, shape=(1, _ps.shape[0], _ps.shape[-1]*_ps.shape[-2])) # keep first batch dim
         values = k(ps)
     values = tf.squeeze(values).numpy()
-    ax.imshow(values)
+    img = ax.imshow(values, vmin=vmin, vmax=vmax, cmap=cmap)
     ax.set_title(f"2D Latent Space\n {k.__class__.__name__}", fontsize=20)
+    return img
 
-def plotlatentspace_lvm_refpoint(k: Kernel, lvm: object, ax, xmin: float=-2., xmax: float=2., stepsize=0.2, ref_point=(0,0)):
+def plotlatentspace_lvm_refpoint(k: Kernel, lvm: object, ax, xmin: float=-2., xmax: float=2., stepsize=0.2, ref_point=(0,0), vmin=0.5, vmax=1., cmap="viridis"):
     xxyy = tf.convert_to_tensor(np.mgrid[xmin:xmax:stepsize, xmin:xmax:stepsize].reshape(2, -1).T)
     if not isinstance(ref_point, tf.Tensor): # convert tuple to tensor
         ref_point = tf.cast(tf.convert_to_tensor(ref_point)[None,:], tf.float64)
@@ -52,14 +53,14 @@ def plotlatentspace_lvm_refpoint(k: Kernel, lvm: object, ax, xmin: float=-2., xm
         values = k(xxyy, ref_point)
     else:
         ps = lvm.p(xxyy)
-        ps_ref = lvm.p(ref_point)
+        ps_ref = lvm.p(ref_point) 
         _ps = tf.squeeze(ps) # NOTE: shape input to be gpflow compliant [batch..., N, D] and D=L*cat
-        ps = tf.reshape(_ps, shape=(1, _ps.shape[0], _ps.shape[1]*_ps.shape[2])) # keep first batch dim
-        ps_ref = tf.reshape(tf.squeeze(ps_ref), shape=(1, 1, _ps.shape[1]*_ps.shape[2]))
-        values = k(ps,ps_ref)
+        ps = tf.reshape(_ps, shape=(_ps.shape[0], _ps.shape[1]*_ps.shape[2])) # keep first batch dim
+        ps_ref = tf.reshape(tf.squeeze(ps_ref), shape=(1, ps_ref.shape[-1]*ps_ref.shape[-2]))
+        values = k(ps,ps_ref) # NOTE: cannot handle singular inputs but requires vector of values instead TODO
     values = tf.squeeze(values).numpy()
     im_size = int(np.sqrt(values.shape)) # quadratic image
-    ax.imshow(values.reshape((im_size, im_size)))
+    ax.imshow(values.reshape((im_size, im_size)), vmin=vmin, vmax=vmax, cmap=cmap)
     if isinstance(ref_point, tf.Tensor):
         ref_point = ref_point.numpy()
     ax.set_title(f"z={str(list(ref_point))}\n {k.__class__.__name__}", fontsize=9)
