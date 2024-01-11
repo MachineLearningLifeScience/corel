@@ -47,7 +47,7 @@ TRACKING_URI = "file:/Users/rcml/corel/results/mlruns/"
 
 AVAILABLE_WEIGHTINGS = [HMMFactory, VAEFactory]
 # number of available observation from cold (0.) to warm (250+) start
-AVAILABLE_SEQUENCES_N = [1, 16, 512]
+AVAILABLE_SEQUENCES_N = [3, 16, 50, 512]
 
 RFP_PROBLEM_NAMES = list(problem_model_mapping.keys())
 
@@ -192,7 +192,7 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--seed", type=int, default=0, help="Random seed for experiments.")
     parser.add_argument("-m", "--max_evaluations", type=int, default=100, help="Optimization budget, number of possible observations.")
     parser.add_argument("-p", "--problem", type=str, choices=list(problem_model_mapping.keys()), default=list(problem_model_mapping.keys())[0], help="Problem description as string key.")
-    parser.add_argument("-b", "--batch", type=int, default=1)
+    parser.add_argument("-b", "--batch", type=int, default=2)
     parser.add_argument("-n", "--number_observations", type=int, choices=AVAILABLE_SEQUENCES_N, default=AVAILABLE_SEQUENCES_N[-1])
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-w", "--weighting", type=str, choices=AVAILABLE_WEIGHTINGS, default=AVAILABLE_WEIGHTINGS[0])
