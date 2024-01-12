@@ -13,15 +13,15 @@ done
 
 # CoRel RFP known structures experiment 
 for seed in 0 1 3 5 7 13; do
-    python ./experiments/run_cold_warm_start_experiments_rfp_bo.py -b 16 -s ${seed} -p foldx_stability_and_sasa -d /home/pcq275/lambo/lambo/assets/foldx/ -m ${NUM_ITERATIONS} | tee ${LOG_DIR}foldx_stability_and_sasa_COREL_${seed}.log
+    python ${COREL_DIR}experiments/run_cold_warm_start_experiments_rfp_bo.py -b 16 -s ${seed} -p foldx_stability_and_sasa -d /home/pcq275/lambo/lambo/assets/foldx/ -m ${NUM_ITERATIONS} | tee ${LOG_DIR}foldx_stability_and_sasa_COREL_${seed}.log
 done
 
 # CoRel warm start is foldx_stability with base RFP structures subselected
 for seed in 0 1 3 5 7 13; do
-    python ./experiments/run_cold_warm_start_experiments_rfp_bo.py -b 16 -s ${seed} -p foldx_stability_and_sasa -d /home/pcq275/lambo/lambo/assets/foldx/ -n 50 -m ${NUM_ITERATIONS} | tee ${LOG_DIR}foldx_stability_and_sasa_WARM_COREL_${seed}.log
+    python ${COREL_DIR}experiments/run_cold_warm_start_experiments_rfp_bo.py -b 16 -s ${seed} -p foldx_stability_and_sasa -d /home/pcq275/lambo/lambo/assets/foldx/ -n 50 -m ${NUM_ITERATIONS} | tee ${LOG_DIR}foldx_stability_and_sasa_WARM_COREL_${seed}.log
 done
 
 # CoRel ice cold-start is foldx_stability with one RFP structure subselected
 for seed in 0 1 3 5 7 13; do
-    python ./experiments/run_cold_warm_start_experiments_rfp_bo.py -b 2 -s ${seed} -p foldx_stability_and_sasa -d /home/pcq275/lambo/lambo/assets/foldx/ -n 3 -m ${NUM_ITERATIONS} | tee ${LOG_DIR}foldx_stability_and_sasa_COLD_COREL_${seed}.log
+    python ${COREL_DIR}experiments/run_cold_warm_start_experiments_rfp_bo.py -b 2 -s ${seed} -p foldx_stability_and_sasa -d /home/pcq275/lambo/lambo/assets/foldx/ -n 3 -m ${NUM_ITERATIONS} | tee ${LOG_DIR}foldx_stability_and_sasa_COLD_COREL_${seed}.log
 done

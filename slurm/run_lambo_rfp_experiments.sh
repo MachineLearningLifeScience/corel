@@ -30,14 +30,19 @@ done
 # Benchmark Poli Task: RFP FoldX stability and SASA
 python scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=2 optimizer.num_rounds=${NUM_ITERATIONS} # 'hydra.searchpath=[file:///Users/rcml/poli/src/poli/objective_repository/foldx_rfp_lambo/]'
 
-for seed in 0 1 3 5 7; do
+# FULL STABILITY SASA EXPERIMENT
+for seed in 0 1 3 5 7 13; do
     # NOTE: num_gens implicitly trains representations
     # NOTE: weighted resampling scheme pushes performance - cannot be disabled.
-    python ${LAMBO_DIRECTORY}scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS} optimizer.num_gens=1
+    python ${LAMBO_DIRECTORY}scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS}
 done
 
+# LAMBO RUNNING FOLDX STABILITY SASA WARM (only PDBs available)
+for seed in 0 1 3 5 7; do
+    python ${LAMBO_DIRECTORY}scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS} task.num_start_examples=50
+done
 
-# Benchmark Poli Task RFP Foldx cold n=1 one reference protein
+# Benchmark Poli Task RFP Foldx cold n=3 one reference protein
 for seed in 0 1 3 5 7; do
     python ${LAMBO_DIRECTORY}scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp_cold tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS}
 done
