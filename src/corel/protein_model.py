@@ -103,12 +103,13 @@ class ProteinModel(TrainableProbabilisticModel):
         self.dataset = dataset
         self._optimized = False
 
-    def optimize(self, dataset: Dataset, eps=1e-6) -> None:
+    def optimize(self, dataset: Dataset) -> None:
         assert(np.all(self.dataset.query_points.numpy() == dataset.query_points.numpy()))
         assert(np.all(self.dataset.observations.numpy() == dataset.observations.numpy()))
         # transform query points to one_hot? No, better do that in the distribution. HMMs may prefer that
         num_tasks = dataset.observations.shape[1]
-        initial_length_scale = np.sqrt(np.median(self.ps.numpy())) + eps  # add small epsilon for numerical stability in case of close to zero ps
+        # NOTE: minimal initial value cannot be zero, but smallest possible computed value from p-vec
+        initial_length_scale = max(np.sqrt(np.median(self.ps.numpy())), np.exp(-350)) # add small epsilon for numerical stability in case of close to zero ps
         self.log_length_scales = [tf.Variable(tf.math.log(initial_length_scale * tf.ones(1, dtype=default_float()))) for _ in range(num_tasks)]
         self.log_noises = [tf.Variable(tf.math.log(1e-3 * tf.ones(1, dtype=default_float()))) for _ in range(num_tasks)]
         squared_hellinger_distance = _hellinger_distance(self.ps)
@@ -137,7 +138,7 @@ class ProteinModel(TrainableProbabilisticModel):
             optimizer.minimize(
                 make_closure(),
                 [self.log_length_scales[i], self.log_noises[i]],
-                bounds = [(-230, None), # constraint log_length_scale, prohibit values close to or equal zero
+                bounds = [(-350, None), # constraint log_length_scale, prohibit values close to or equal zero
                         (None, None)] # constraint log_noise
             )
             print(tf.math.exp(self.log_length_scales[i]))
