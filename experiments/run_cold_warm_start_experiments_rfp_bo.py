@@ -124,12 +124,13 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
             parallelize=True,
             num_workers=4,
             batch_size=batch, # TODO: mutliple elements should be supported here!
+            n_starting_points=n_allowed_observations,
         )
     else:
         raise NotImplementedError
     # subselect initial data and observations
-    _x0 = _x0[:n_allowed_observations] 
-    y0 = _y0[:n_allowed_observations]
+    _x0 = _x0
+    y0 = _y0
 
     L = problem_info.get_max_sequence_length()
     if L == np.inf:
