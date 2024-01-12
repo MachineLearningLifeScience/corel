@@ -33,17 +33,19 @@ from corel.weightings.vae.base.vae_factory import VAEFactory
 # from corel.observers.poli_lambo_logger import PoliLamboLogger
 # from corel.observers.poli_base_logger import PoliBaseMlFlowObserver
 
-problem_model_mapping = { # TODO: these filenames should come from a config and are problem specific
+COREL_DIR = Path(__file__).parent.parent.resolve()
+
+problem_model_mapping = {
     "foldx_rfp_lambo": {
-        "hmm": "./experiments/assets/hmms/rfp.hmm", # TODO: make this relative filenmae
-        "vae": "./results/models/vae_z_2_rfp_fam.ckpt"
+        "hmm": f"{str(COREL_DIR)}/experiments/assets/hmms/rfp.hmm",
+        # "vae": "./results/models/vae_z_2_rfp_fam.ckpt"
         },
     "foldx_stability_and_sasa":{
-        "hmm": "./experiments/assets/hmms/rfp.hmm"
+        "hmm": f"{str(COREL_DIR)}/experiments/assets/hmms/rfp.hmm"
     }
 }
 
-TRACKING_URI = "file:/Users/rcml/corel/results/mlruns/"
+TRACKING_URI = f"file:{str(COREL_DIR)}/results/mlruns/"
 
 AVAILABLE_WEIGHTINGS = [HMMFactory, VAEFactory]
 # number of available observation from cold (0.) to warm (250+) start
