@@ -103,12 +103,12 @@ class ProteinModel(TrainableProbabilisticModel):
         self.dataset = dataset
         self._optimized = False
 
-    def optimize(self, dataset: Dataset) -> None:
+    def optimize(self, dataset: Dataset, eps=1e-6) -> None:
         assert(np.all(self.dataset.query_points.numpy() == dataset.query_points.numpy()))
         assert(np.all(self.dataset.observations.numpy() == dataset.observations.numpy()))
         # transform query points to one_hot? No, better do that in the distribution. HMMs may prefer that
         num_tasks = dataset.observations.shape[1]
-        initial_length_scale = np.sqrt(np.median(self.ps.numpy()))
+        initial_length_scale = np.sqrt(np.median(self.ps.numpy())) + eps  # add small epsilon for numerical stability in case of close to zero ps
         self.log_length_scales = [tf.Variable(tf.math.log(initial_length_scale * tf.ones(1, dtype=default_float()))) for _ in range(num_tasks)]
         self.log_noises = [tf.Variable(tf.math.log(1e-3 * tf.ones(1, dtype=default_float()))) for _ in range(num_tasks)]
         squared_hellinger_distance = _hellinger_distance(self.ps)
@@ -128,13 +128,17 @@ class ProteinModel(TrainableProbabilisticModel):
                     m, r = get_mean_and_amplitude(L, dataset.observations[:, i:i+1])
                     log_prob = multivariate_normal(dataset.observations[:, i:i+1], m * tf.ones([L.shape[0], 1], default_float()),
                                                    tf.sqrt(r) * L)
-                    return -tf.reduce_sum(log_prob)
+                    nll = -tf.reduce_sum(log_prob)
+                    if not tf.math.is_finite(nll):
+                        return tf.convert_to_tensor(np.inf)
+                    return nll
                 return opt_criterion
 
             optimizer.minimize(
                 make_closure(),
                 [self.log_length_scales[i], self.log_noises[i]],
-                # options=dict(maxiter=reduce_in_tests(1000)),
+                bounds = [(-230, None), # constraint log_length_scale, prohibit values close to or equal zero
+                        (None, None)] # constraint log_noise
             )
             print(tf.math.exp(self.log_length_scales[i]))
             print(tf.math.exp(self.log_noises[i]))
