@@ -34,15 +34,20 @@ python scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=p
 for seed in 0 1 3 5 7 13; do
     # NOTE: num_gens implicitly trains representations
     # NOTE: weighted resampling scheme pushes performance - cannot be disabled.
-    python ${LAMBO_DIRECTORY}scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS}
+    python ${LAMBO_DIRECTORY}scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS} +task.data_path=/home/pcq275/lambo/lambo/assets/foldx/
 done
 
 # LAMBO RUNNING FOLDX STABILITY SASA WARM (only PDBs available)
-for seed in 0 1 3 5 7; do
-    python ${LAMBO_DIRECTORY}scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS} task.num_start_examples=50
+for seed in 0 1 3 5 7 13; do
+    python ${LAMBO_DIRECTORY}scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS} task.num_start_examples=50 +task.data_path=/home/pcq275/lambo/lambo/assets/foldx/
 done
 
-# Benchmark Poli Task RFP Foldx cold n=3 one reference protein
+# Benchmark Poli Task RFP Foldx COLD one reference protein
+for seed in 0 1 3 5 7 13; do
+    python ${LAMBO_DIRECTORY}scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS} task.num_start_examples=16 +task.data_path=/home/pcq275/lambo/lambo/assets/foldx/
+done
+
+# Benchmark Poli Task RFP Foldx ICE cold n=3 one reference protein
 for seed in 0 1 3 5 7; do
     python ${LAMBO_DIRECTORY}scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp_cold tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS}
 done
