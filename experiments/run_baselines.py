@@ -7,7 +7,7 @@ Baselines to run:
 Objective functions to optimize:
 - "gfp_cbas_gp" ( )
 - "gfp_cbas_elbo" ( )
-- "foldx_rfp_lambo" ( )
+- "foldx_rfp_lambo" (x)
 - "foldx_stability_and_sasa" (x)
 
 To run this script, you'll need to:
@@ -25,14 +25,15 @@ To run this script, you'll need to:
     - Clone poli-baselines and install it:
       pip install git+https://github.com/MachineLearningLifeScience/poli-baselines
 """
-from typing import Tuple
+from typing import Tuple, Literal
 from pathlib import Path
+import warnings
+
+warnings.filterwarnings("ignore", module="Bio")
 
 import numpy as np
 
-from pymoo.core.infill import InfillCriterion
-from pymoo.core.mutation import Mutation
-
+from poli.objective_repository import RFPWrapperFactory
 from poli.core.problem_setup_information import ProblemSetupInformation
 
 from poli.objective_repository import FoldXStabilityAndSASAProblemFactory
@@ -41,6 +42,7 @@ from poli_baselines.solvers import (
     DiscreteNSGAII,
 )
 
+from corel.observers.poli_base_logger import PoliBaseMlFlowObserver
 from corel.observers.poli_lambo_logger import PoliLamboLogger
 from corel.util.constants import (
     ALGORITHM,
@@ -81,42 +83,77 @@ def prepare_data_for_experiment(
     return X_train, y0
 
 
+def instantiate_black_box(
+    problem_name: Literal["foldx_stability_and_sasa", "foldx_rfp_lambo"],
+    caller_info: dict,
+):
+    assets_pdb_paths = list(LAMBO_FOLDX_ASSETS.glob("*/wt_input_Repair.pdb"))
+
+    # This is mostly taken from run_cold_warm_start_experiments_rfp_bo.py
+    if problem_name == "foldx_stability_and_sasa":
+        if (
+            n_allowed_observations == 1
+        ):  # cold-start problem: optimize w.r.t. 1 protein specifically
+            assets_pdb_paths = [
+                LAMBO_FOLDX_ASSETS / "1zgo_A" / "wt_input_Repair.pdb"
+            ]  # pick DsRed specifically.
+        if n_allowed_observations > len(assets_pdb_paths):
+            # if there is less data available than allowed, set this as starting number
+            caller_info[STARTING_N] = len(assets_pdb_paths)
+        observer = PoliBaseMlFlowObserver(TRACKING_URI)
+
+        f, x0, y0 = FoldXStabilityAndSASAProblemFactory().create(
+            wildtype_pdb_path=assets_pdb_paths,
+            batch_size=batch,
+            seed=seed,
+            parallelize=True,
+            num_workers=4,
+        )
+
+    elif problem_name == "foldx_rfp_lambo":
+        observer = PoliLamboLogger(TRACKING_URI)
+        f, x0, y0 = RFPWrapperFactory().create(seed=seed)
+
+    else:
+        raise NotImplementedError
+
+    observer.initialize_observer(f.info, caller_info, x0, y0, seed)
+
+    f.set_observer(observer)
+
+    return f, x0, y0
+
+
 if __name__ == "__main__":
     # TODO: add argparse.
+    problem_name = "foldx_rfp_lambo"
     batch = 1
     seed = 0
-    n_allowed_observations = 2
+    population_size = 32
+    n_allowed_observations = 1
+    n_iterations = 10
+    n_mutations = 1
 
-    observer = PoliLamboLogger(TRACKING_URI)
+    # Creating the black box
     caller_info = {
         BATCH_SIZE: batch,
         SEED: seed,
         STARTING_N: n_allowed_observations,
         MODEL: "BASELINE",
-        ALGORITHM: "NSGAII",
+        ALGORITHM: f"NSGAII_popsize_{population_size}_n_mutations_{n_mutations}",
     }
+    f, x0, y0 = instantiate_black_box(problem_name, caller_info)
 
-    wildtype_pdb_paths = list(LAMBO_FOLDX_ASSETS.glob("*/wt_input_Repair.pdb"))[
-        :n_allowed_observations
-    ]
-
-    problem_factory = FoldXStabilityAndSASAProblemFactory()
-
-    f, x0, y0 = problem_factory.create(
-        wildtype_pdb_path=wildtype_pdb_paths,
-        batch_size=batch,
-    )
-
+    # Making sure we're only using the allowed number of observations
     x0 = x0[:n_allowed_observations]
     y0 = y0[:n_allowed_observations]
 
-    # x0, y0 = prepare_data_for_experiment(x0, y0, n_allowed_observations, problem_info)
-
+    # Running the baseline
     baseline = DiscreteNSGAII(
         black_box=f,
         x0=x0,
         y0=y0,
-        population_size=x0.shape[0],
+        population_size=population_size,
     )
 
-    baseline.solve(max_iter=10)
+    baseline.solve(max_iter=n_iterations, verbose=True)
