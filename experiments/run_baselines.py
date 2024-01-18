@@ -28,6 +28,7 @@ To run this script, you'll need to:
 from typing import Tuple, Literal
 from pathlib import Path
 import warnings
+import argparse
 
 warnings.filterwarnings("ignore", module="Bio")
 
@@ -59,6 +60,8 @@ LAMBO_PROJECT_ROOT = Path(lambo_project_root_file).parent.parent.resolve()
 LAMBO_FOLDX_ASSETS = LAMBO_PROJECT_ROOT / "lambo" / "assets" / "foldx"
 PROJECT_ROOT_DIR = Path(__file__).parent.parent.resolve()
 TRACKING_URI = f"file:/{PROJECT_ROOT_DIR}/results/mlruns"
+
+AVAILABLE_SEQUENCES_N = [3, 16, 50, 512]
 
 
 def prepare_data_for_experiment(
@@ -104,7 +107,7 @@ def instantiate_black_box(
 
         f, x0, y0 = FoldXStabilityAndSASAProblemFactory().create(
             wildtype_pdb_path=assets_pdb_paths,
-            batch_size=batch,
+            batch_size=4,
             seed=seed,
             parallelize=True,
             num_workers=4,
@@ -113,7 +116,6 @@ def instantiate_black_box(
     elif problem_name == "foldx_rfp_lambo":
         observer = PoliLamboLogger(TRACKING_URI)
         f, x0, y0 = RFPWrapperFactory().create(seed=seed)
-
     else:
         raise NotImplementedError
 
@@ -125,14 +127,23 @@ def instantiate_black_box(
 
 
 if __name__ == "__main__":
-    # TODO: add argparse.
-    problem_name = "foldx_rfp_lambo"
-    batch = 1
-    seed = 0
-    population_size = 32
-    n_allowed_observations = 1
+    parser = argparse.ArgumentParser(description="Experiment specifications for running NSGA-II.")
+    parser.add_argument("-s", "--seed", type=int, default=0, help="Random seed for experiments.")
+    parser.add_argument("-m", "--max_evaluations", type=int, default=100, help="Optimization budget, number of possible observations.")
+    parser.add_argument("-p", "--problem", type=str, choices=["foldx_rfp_lambo", "foldx_stability_and_sasa"], default="foldx_rfp_lambo", help="Problem description as string key.")
+    parser.add_argument("-b", "--batch", type=int, default=None)
+    parser.add_argument("-n", "--number_observations", type=int, choices=AVAILABLE_SEQUENCES_N, default=AVAILABLE_SEQUENCES_N[-1])
+    args = parser.parse_args()
+
+    problem_name = args.problem
+    batch = args.batch
+    seed = args.seed
+    n_allowed_observations = args.number_observations
+    
+    # Adding some hardcoded values for NSGA-II
+    population_size = 10
     n_iterations = 10
-    n_mutations = 1
+    n_mutations = 5
 
     # Creating the black box
     caller_info = {
@@ -150,10 +161,11 @@ if __name__ == "__main__":
 
     # Running the baseline
     baseline = DiscreteNSGAII(
-        black_box=f,
+        black_box=f if args.problem == "foldx_stability_and_sasa" else -f,
         x0=x0,
         y0=y0,
         population_size=population_size,
+        num_mutations=n_mutations,
     )
 
     baseline.solve(max_iter=n_iterations, verbose=True)
