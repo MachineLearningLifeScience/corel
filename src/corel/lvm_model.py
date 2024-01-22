@@ -1,5 +1,7 @@
 __author__ = "RM"
 
+from cmath import inf
+from copy import deepcopy
 import logging
 from inspect import Parameter
 from logging import info
@@ -26,7 +28,7 @@ class LVMModel(TrainableProbabilisticModel):
     Model over the product of weighted HKs
     NOTE: this model is currently implemented for the 1D case!
     """
-    def __init__(self, distribution: tf.Tensor, AA: int, L: int, unlabelled_data: Optional[TensorType]=None, batch_size: int=1) -> None:
+    def __init__(self, distribution: tf.Tensor, AA: int, L: int, unlabelled_data: Optional[TensorType]=None, batch_size: int=1, nan_penalty: float=10.) -> None:
         """
         Instantiate LVMModel class.
             Distribution is callable object embedding distribution
@@ -53,6 +55,7 @@ class LVMModel(TrainableProbabilisticModel):
         self.model = None
         self._kernel = None
         self.reference_data = self._one_hot_encode_ints(unlabelled_data)
+        self.nan_penalty = nan_penalty
 
     def _one_hot_encode_ints(self, data) -> TensorType:
         """
@@ -101,16 +104,20 @@ class LVMModel(TrainableProbabilisticModel):
         pass
 
     def update(self, dataset: Dataset, batch_size=1) -> None:
-        if self.X is not None:
-            oldN = self.X.shape[0]
-            _valid = self._test_validity_data_observations(query_points=dataset.query_points[:oldN, ...], observations=dataset.observations[:oldN, ...])
-            # deselect potential NaN values
+        if self.nan_penalty:
+            valid_observations = deepcopy(dataset.observations.numpy())
+            nan_idx = np.isnan(dataset.observations.numpy())[...,0]
+            info(f"Replacing {nan_idx.sum()} NaN values with penalty fixed value")
+            valid_observations[nan_idx] = self.nan_penalty  # assign NaN value a positive value
+            valid_query_points = dataset.query_points  # all query points are valid now
+        else: # take out NaN values which break GP fit/opt
             valid_idx = np.isfinite(dataset.observations.numpy())[..., 0]
             valid_query_points = dataset.query_points[valid_idx, ...]
-            valid_observations = dataset.observations[valid_idx, ...]
+            valid_observations = dataset.observations[valid_idx, ...]  # NOTE: not all query points will be valid!
+        if self.X is not None:
+            oldN = self.X.shape[0]
+            _valid = self._test_validity_data_observations(query_points=valid_query_points[:oldN, ...], observations=valid_observations[:oldN, ...])
         else:
-            valid_query_points = dataset.query_points
-            valid_observations = dataset.observations
             oldN = 0
         info("Computing sequence probabilities...")
         one_hot_querypoints = tf.one_hot(valid_query_points[oldN:, ...], self.aa)
@@ -168,17 +175,21 @@ class LVMModel(TrainableProbabilisticModel):
         return pred_mean, pred_var
     
     def _test_validity_data_observations(self, query_points: TensorType, observations: TensorType) -> bool:
-        valid_idx = np.isfinite(observations.numpy())[...,0]
-        valid_data = np.all(self.X[valid_idx].numpy() == query_points[valid_idx].numpy())
-        valid_obs = np.all(self.y[valid_idx].numpy() == observations[valid_idx].numpy()) # TODO: account for NaN values that break assert
+        if isinstance(query_points, tf.Tensor):
+            query_points = query_points.numpy()
+        if isinstance(observations, tf.Tensor):
+            observations = observations.numpy()
+        valid_data = np.all(np.array(self.X) == query_points)
+        valid_obs = np.all(np.array(self.y) == observations) # TODO: account for NaN values that break assert
         if not valid_data or not valid_obs:
-            raise ValueError("Invalid input data!") # TODO: make specific
+            raise ValueError(f"Model points, observations invalid w.r.t. input data!\nX={self.X.shape} y={self.y.shape} against query={query_points.shape} obs={observations.shape}") # TODO: make specific
         return True
 
     def optimize(self, dataset: Dataset) -> None:
         if dataset.observations.shape[1] > 1:
             raise NotImplementedError("Only 1D case implemented!")
-        _valid_data = self._test_validity_data_observations(query_points=dataset.query_points, observations=dataset.observations)
+        # NOTE: below becomes a redundant check with replaced NaNs we ask for self.X==self.X
+        # _valid_data = self._test_validity_data_observations(query_points=self.X, observations=self.y)
         opt = Scipy()
         opt.minimize(self.model.training_loss, 
                     self.model.trainable_variables, 
@@ -206,5 +217,6 @@ class LVMModel(TrainableProbabilisticModel):
             amplitude=[self.kern_amplitude.numpy()],
             kernel_mu=[self.kern_mean.numpy()],
             noises=[self.noise.numpy()],
+            nan_penalty=[self.nan_penalty],
         )
         return context
