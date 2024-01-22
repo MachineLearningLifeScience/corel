@@ -1,27 +1,41 @@
-import gpflow
-from gpflow.utilities import positive
-import tensorflow as tf
 from typing import Optional
-import numpy as np
 
-from corel.util.util import handle_batch_shape
+import gpflow
+import numpy as np
+import tensorflow as tf
+from gpflow import default_float
+from gpflow.utilities import positive
+
 from corel.kernel import Hellinger
+from corel.util.util import handle_batch_shape
 
 
 class WeightedHellinger(Hellinger):
-    def __init__(self, w: tf.Tensor, L: int, AA: int, lengthscale: float=1.0, noise: float=0.1, active_dims: Optional[int] = None, name: Optional[str] = None) -> None:
+    def __init__(self, w: tf.Tensor, L: int, AA: int, lengthscale: tf.Tensor=None, active_dims: Optional[int] = None, name: Optional[str] = None) -> None:
         super().__init__(L=L, AA=AA, active_dims=active_dims, name=name)
         if len(w.shape) >= 3:
             w = self.restore(w)
         self.w = w  # weighting density vector
-        self.lengthscale = gpflow.Parameter(lengthscale, transform=positive()) # TODO: log transform here?
-        self.noise = gpflow.Parameter(noise, transform=positive()) # TODO: check against Kernel Interface
-
+        if lengthscale is None:
+            lengthscale = gpflow.Parameter(1.0, transform=positive(), dtype=default_float) # TODO: log transform here?
+        self.lengthscale = lengthscale  
+            
     @staticmethod
     def _handle_k_output_shape(X: tf.Tensor, X2: tf.Tensor) -> tuple:
-        if X2 is None and len(X.shape) in [2, 3]: # case [B, N, D] singular
-            output_shape = (1, X.shape[1], X.shape[1])
-        elif len(X.shape) in [2, 3] and len(X2.shape) in [2, 3]: # case two inputs of shape [B, N, D] 
+        if X2 is None:
+            if len(X.shape) == 2: # case [N, D] singular
+                output_shape = (X.shape[0], X.shape[0])
+            elif len(X.shape) == 3: # case [B, N, D] singular
+                output_shape = (1, X.shape[1], X.shape[1])
+            else:
+                raise ValueError(f"The provided input shapes X.shape={X.shape} , X2.shape={X2.shape} are incorrect!\n Required X.shape=[N, D] or X2.shape=[B, N, D]")
+        elif len(X.shape) == 2 and len(X2.shape) == 2: # case two inputs of shape [N, D] 
+            output_shape = (1, X.shape[0], 1, X2.shape[0]) # adhere to [batch..., N1, batch..., N2]
+        elif len(X.shape) == 2 and len(X2.shape) == 3: # case two inputs of shape [N, D] and [B, N, D]
+            output_shape = (1, X.shape[0], 1, X2.shape[1]) # adhere to [batch..., N1, batch..., N2]
+        elif len(X.shape) == 3 and len(X2.shape) == 2: # case two inputs of shape [B, N, D] and [N, D]
+            output_shape = (1, X.shape[1], 1, X2.shape[0]) # adhere to [batch..., N1, batch..., N2]
+        elif len(X.shape) == 3 and len(X2.shape) == 3: # case two inputs of shape [B, N, D] 
             output_shape = (1, X.shape[1], 1, X2.shape[1]) # adhere to [batch..., N1, batch..., N2]
         else:
             raise ValueError(f"The provided input shapes X.shape={X.shape} , X2.shape={X2.shape} are incorrect!\n Required X.shape=[N, D] or X2.shape=[B, N, D]")
@@ -29,7 +43,7 @@ class WeightedHellinger(Hellinger):
 
     def K(self, X: tf.Tensor, X2: Optional[tf.Tensor]=None) -> tf.Tensor:
         """
-        X input is P(X), X2 input is Q(X), if X2 not provided X2<-X;
+        X input is P(X), X2 input is Q(X), if X2 not provided X2<-P(X);
         uses self.w weighting (distribution) vector for computing weighted Hellinger kernel
         returns wHK value
             if X == X2 returns tf.Tensor shape [1, N, N]

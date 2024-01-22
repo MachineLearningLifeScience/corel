@@ -2,7 +2,8 @@ __author__ = 'Simon Bartels'
 
 import logging
 import warnings
-from typing import Tuple, Optional
+from typing import List, Optional, Tuple
+
 import numpy as np
 import tensorflow as tf
 from gpflow import default_float, set_trainable
@@ -11,11 +12,9 @@ from gpflow.optimizers import Scipy
 from trieste.data import Dataset
 from trieste.models import TrainableProbabilisticModel
 from trieste.types import TensorType
-from typing import List
 
-from corel.kernel.hellinger import get_mean_and_amplitude
-from corel.kernel.hellinger import _hellinger_distance
-from corel.kernel.hellinger import _k
+from corel.kernel.hellinger import (_hellinger_distance, _k,
+                                    get_mean_and_amplitude)
 
 
 class ProteinModel(TrainableProbabilisticModel):
@@ -55,11 +54,8 @@ class ProteinModel(TrainableProbabilisticModel):
         ps = self.distribution(p_query)
         qs = np.prod(p_query.numpy()[0, np.arange(p_query.shape[1]), self.dataset.query_points.numpy()], axis=-1)
         qs = tf.constant(qs.reshape([query_points.shape[0], self.dataset.query_points.shape[0]]))
-        #qs = tf.reduce_prod(tf.gather(query_points[0, ...], self.dataset.query_points, dim=-1))
         # BEWARE: this is NOT correct for atoms!
-        # the equation below can become numerically negative
-        #squared_hellinger_distance = ps / 2 - tf.transpose(self.ps) * tf.square(1 - tf.sqrt(qs)) / 2
-        # the following equation seems to be better suitable
+        # the following equation seems to be better suitable (numerically stable)
         squared_hellinger_distance = ps / 2 + tf.transpose(self.ps) * (0.5 - tf.sqrt(qs))
         assert(query_points.shape[0] == 1)
         if np.all(tf.square(query_points).numpy() == query_points.numpy()):
@@ -94,7 +90,7 @@ class ProteinModel(TrainableProbabilisticModel):
             assert(np.all(self.dataset.observations.numpy() == dataset.observations.numpy()[:oldN, ...]))
         else:
             oldN = 0
-        print("getting probabilities of sequences")
+        logging.info("Computing sequence probabilities")
         psnew = self.distribution(dataset.query_points[oldN:, ...])
         if self.ps is None:
             self.ps = psnew
@@ -113,7 +109,8 @@ class ProteinModel(TrainableProbabilisticModel):
         self.log_length_scales = [tf.Variable(tf.math.log(initial_length_scale * tf.ones(1, dtype=default_float()))) for _ in range(num_tasks)]
         self.log_noises = [tf.Variable(tf.math.log(1e-3 * tf.ones(1, dtype=default_float()))) for _ in range(num_tasks)]
         squared_hellinger_distance = _hellinger_distance(self.ps)
-        print("squared Hellinger distance: \n" + str(squared_hellinger_distance.numpy()))
+        logging.info("Compute Squared Hellinger distance:")
+        logging.info(f"{str(squared_hellinger_distance.numpy())}")
 
         for i in range(num_tasks):
             optimizer = Scipy()
@@ -141,15 +138,16 @@ class ProteinModel(TrainableProbabilisticModel):
                 bounds = [(-350, None), # constraint log_length_scale, prohibit values close to or equal zero
                         (None, None)] # constraint log_noise
             )
-            print(tf.math.exp(self.log_length_scales[i]))
-            print(tf.math.exp(self.log_noises[i]))
+            logging.info("Optimization complete")
+            logging.info(f"length-scale {i} = {tf.math.exp(self.log_length_scales[i])}")
+            logging.info(f"noise {i} = {tf.math.exp(self.log_noises[i])}")
         self.Ls = [tf.linalg.cholesky(_k(squared_hellinger_distance, self.log_length_scales[i], self.log_noises[i])) for i in range(num_tasks)]
         self.kernel_means = dict()
         self.amplitudes = dict()
         for i in range(num_tasks):
             self.kernel_means[i], self.amplitudes[i] = get_mean_and_amplitude(self.Ls[i], dataset.observations[:, i:i+1])
-        print("length scales: " + str([np.exp(self.log_length_scales[i].numpy()) for i in range(num_tasks)]))
-        print("noises: " + str([np.exp(self.log_noises[i].numpy()) for i in range(num_tasks)]))
+        logging.info("length scales: " + str([np.exp(self.log_length_scales[i].numpy()) for i in range(num_tasks)]))
+        logging.info("noises: " + str([np.exp(self.log_noises[i].numpy()) for i in range(num_tasks)]))
         self.alphas = [tf.linalg.triangular_solve(self.Ls[i], dataset.observations[:, i:i+1] - self.kernel_means[i], lower=True) for i in range(num_tasks)]
         self._optimized = True
 

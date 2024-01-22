@@ -7,16 +7,16 @@ import gpflow
 from gpflow.kernels import Kernel
 from gpflow.utilities import positive
 from gpflow.utilities import print_summary
+from gpflow.utilities import to_default_float
 
 from corel.util.util import handle_batch_shape
 from corel.kernel.hellinger_reference import HellingerReference
 
 
 class Hellinger(HellingerReference):
-    def __init__(self, L: int, AA: int, lengthscale: float=1.0, noise: float=0.1, active_dims: Optional[int] = None, name: Optional[str] = None) -> None:
+    def __init__(self, L: int, AA: int, lengthscale: float=1.0, active_dims: Optional[int] = None, name: Optional[str] = None) -> None:
         super().__init__(L=L, AA=AA, active_dims=active_dims, name=name)
         self.lengthscale = gpflow.Parameter(lengthscale, transform=positive()) # TODO: log transform here?
-        self.noise = gpflow.Parameter(noise, transform=positive()) # TODO: check against Kernel Interface
 
     def K(self, X, X2=None) -> tf.Tensor:
         """
@@ -43,7 +43,7 @@ class Hellinger(HellingerReference):
         return M
 
     def K_diag(self, X) -> tf.Tensor:
-        return tf.ones(X.shape[0])
+        return to_default_float(tf.ones(X.shape[0]))
 
     def _H(self, X: tf.Tensor, X2: tf.Tensor):
         M = self._get_inner_product(X, X2)
