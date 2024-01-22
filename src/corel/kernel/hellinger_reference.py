@@ -1,29 +1,23 @@
 from typing import Optional
-import tensorflow as tf
-import numpy as np
+
 import gpflow
+import numpy as np
+import tensorflow as tf
 from gpflow.kernels import Kernel
-from gpflow.utilities import positive
-from gpflow.utilities import print_summary
+from gpflow.utilities import positive, print_summary, to_default_float
 
 
 class HellingerReference(Kernel):
-    def __init__(self, L:int, AA:int, lengthscale: float=1.0, noise: float=0.1, active_dims: Optional[int] = None, name: Optional[str] = None) -> None:
+    def __init__(self, L:int, AA:int, lengthscale: float=1.0, active_dims: Optional[int] = None, name: Optional[str] = None) -> None:
         super().__init__(active_dims, name)
         self.AA = AA
         self.L = L
         self.lengthscale = gpflow.Parameter(lengthscale, transform=positive()) # TODO: log transform here?
-        self.noise = gpflow.Parameter(noise, transform=positive()) # TODO: check against Kernel Interface
 
     def restore(self, ps: tf.Tensor) -> tf.Tensor:
-        N = 1 if len(ps.shape) <= 2 else ps.shape[1]
-        if ps.shape[-1] != self.AA:
-            ps = tf.reshape(ps, shape=(N, ps.shape[-1] // self.AA,  self.AA))
-            return ps
-        elif ps.shape[0] == N and ps.shape[-2] == self.L and ps.shape[-1] == self.AA:
-            return ps
-        else:
-            raise ValueError(f"Vector p shape incorrect! {ps.shape}")
+        if len(ps.shape) == 3: # batch case: [B, N, D]
+            return tf.reshape(ps, shape=(ps.shape[1], ps.shape[-1] // self.AA, self.AA))
+        return tf.reshape(ps, shape=(ps.shape[0], ps.shape[-1] // self.AA,  self.AA)) # default [N, D]
 
     def K(self, X, X2=None) -> tf.Tensor:
         if X2 is None:
@@ -34,7 +28,7 @@ class HellingerReference(Kernel):
         return M
 
     def K_diag(self, X) -> tf.Tensor:
-        return tf.ones(X.shape[0])
+        return to_default_float(tf.ones(X.shape[0]))
 
     def _assert_X_values(self, X: tf.Tensor, tol:float) -> bool:
         return (tf.abs(tf.math.reduce_sum(X, axis=-1) - 1.) < tol).numpy().all()

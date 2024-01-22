@@ -11,6 +11,7 @@ class VAEWeighting(AbstractWeighting):
     def __init__(self, vae: CBASVAEWrapper):
         # TODO: average over more distributions
         latent_dim = vae.vae.latentDim_
+        self.vae = vae
         self.p0 = vae.decode(tf.zeros([1, latent_dim]))
 
     def expectation(self, p):
@@ -24,3 +25,10 @@ class VAEWeighting(AbstractWeighting):
 
     def __call__(self, *args, **kwargs):
         return self.expectation(*args, **kwargs)
+
+    def get_training_data(self):
+        if "cbas" in self.vae.__class__.__name__.lower():
+            return self.vae.get_training_data()
+        else:
+            raise NotImplementedError("Training data loading only implemented for CBas weighting!")
+

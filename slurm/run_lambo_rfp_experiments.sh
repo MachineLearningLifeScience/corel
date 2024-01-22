@@ -44,7 +44,7 @@ done
 
 # Benchmark Poli Task RFP Foldx COLD one reference protein
 for seed in 0 1 3 5 7 13; do
-    python ${LAMBO_DIRECTORY}scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS} task.num_start_examples=16 +task.data_path=/home/pcq275/lambo/lambo/assets/foldx/
+    python ${LAMBO_DIRECTORY}scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS} task.num_start_examples=16 task.batch_size=2 +task.data_path=/home/pcq275/lambo/lambo/assets/foldx/
 done
 
 # Benchmark Poli Task RFP Foldx ICE cold n=3 one reference protein
