@@ -44,7 +44,7 @@ AVAILABLE_WEIGHTINGS = [CBASVAEWeightingFactory]
 # number of available observation from cold (0.) to warm (250+) start
 AVAILABLE_SEQUENCES_N = [3, 16, 50, 512]
 
-PROBLEM_NAMES = ["gfp_cbas_gp", "gfp_cbas_elbo"]
+PROBLEM_NAMES = ["gfp_cbas_gp", "gfp_cbas_elbo"] # TODO: ELBO evaluation currently not working!
 
 MODEL_CLASS = {
         ProteinModel.__name__: ProteinModel, 
@@ -87,7 +87,8 @@ def get_acquisition_function_from_y(y: tf.Tensor, L: int, AA: int) -> object:
     return ei
 
 
-def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_observations: int, problem: str, p_factory: object, model_class: object):
+def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_observations: int, problem: str, p_factory: object, model_class_key: object, strategy: str):
+    model_class = MODEL_CLASS.get(model_class_key)
     if not problem:
         raise ValueError("Specify Problem!")
     set_seeds(seed)
@@ -117,7 +118,6 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
 
     # apply standardization
     y0, y_mu, y_sigma = standardize(y0)
-
     L = problem_info.get_max_sequence_length()
     AA = len(problem_info.get_alphabet())
 
@@ -130,14 +130,20 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
     if "L" in signature(model_class.__init__).parameters.keys():
         info("Querying available unlabelled data")
         init_data = weighting.get_training_data()
-        # TODO: for DEV use only first 100 sequences
-        init_data = init_data[:100] # FIXME
+        if strategy == "sample":
+            init_data = np.random.choice(init_data, size=500, replace=False) # subsample 1% of the sequences for product kernel
+        elif strategy == "distance": 
+            # TODO: compute distance for start data to all candidates, choose closest N/3 mid N/3 and most distant N/3 sequences
+            raise NotImplementedError
+        else:
+            raise ValueError("Selecting unlabelled sequences for product kernel failed!\nPick strategy {sample , distance}")
         init_data_int = transform_string_sequences_to_integer_arrays(init_data, L, aa_int_mapping)
         model = model_class(weighting, AA=AA, L=L, unlabelled_data=init_data_int)
     else:
         model = model_class(weighting, AA)
 
     def f_wrapper(x, f=_f, aa_mapping: dict=int_aa_mapping, model=model, context=None, problem=problem, y_mu=y_mu, y_sigma=y_sigma):
+        info("Querying black-box")
         _x = x.numpy()
         # convert int tensor to AA strings
         sequences = np.array([
@@ -178,12 +184,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Experiment Specifications Cold to Warm-Start")
     parser.add_argument("-s", "--seed", type=int, default=0, help="Random seed for experiments.")
     parser.add_argument("-m", "--max_evaluations", type=int, default=100, help="Optimization budget, number of possible observations.")
-    parser.add_argument("-p", "--problem", type=str, choices=PROBLEM_NAMES, default=PROBLEM_NAMES[0], help="Problem description as string key.")
+    parser.add_argument("-p", "--problem", type=str, choices=PROBLEM_NAMES, default=PROBLEM_NAMES[1], help="Problem description as string key.")
     parser.add_argument("-b", "--batch", type=int, default=10)
     parser.add_argument("-n", "--number_observations", type=int, choices=AVAILABLE_SEQUENCES_N, default=AVAILABLE_SEQUENCES_N[-1])
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-w", "--weighting", type=str, choices=AVAILABLE_WEIGHTINGS, default=AVAILABLE_WEIGHTINGS[0])
-    parser.add_argument("--model", type=str, choices=MODEL_CLASS.keys(), default=MODEL_CLASS.get(LVMModel.__name__))
+    parser.add_argument("--model", type=str, choices=MODEL_CLASS.keys(), default=LVMModel.__name__)
+    parser.add_argument("--strategy", type=str, choices=["sample", "distance"], default="sample")
     args = parser.parse_args()
     info(f"Running GFP experiment: {args.problem}\n Model: {args.model} weighting: {args.weighting}\nbudget={args.max_evaluations} batch_size={args.batch} seed={args.seed}")
     result = cold_start_gfp_experiment(
@@ -193,7 +200,8 @@ if __name__ == "__main__":
         batch=args.batch, 
         n_allowed_observations=args.number_observations,
         p_factory=args.weighting,
-        model_class=args.model,
+        model_class_key=args.model,
+        strategy=args.strategy,
     )
     if args.verbose:
         info(f"Optimal result: {result}")

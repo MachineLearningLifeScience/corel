@@ -1,20 +1,18 @@
 __author__ = "RM"
 
-from cmath import inf
-from copy import deepcopy
 import logging
+from copy import deepcopy
 from inspect import Parameter
 from logging import info
 from typing import Optional, Tuple
 
 import numpy as np
 import tensorflow as tf
-from gpflow import Parameter, default_float, set_trainable
+from gpflow import Parameter, default_float
 from gpflow.kernels import Product
-from gpflow.logdensities import multivariate_normal
 from gpflow.models import GPR
 from gpflow.optimizers import Scipy
-from gpflow.utilities import positive, print_summary, to_default_float
+from gpflow.utilities import positive, to_default_float
 from trieste.data import Dataset
 from trieste.models import TrainableProbabilisticModel
 from trieste.types import TensorType
