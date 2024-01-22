@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=GFP
-#SBATCH -p boomsma
+#SBATCH -p gpu
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem-per-cpu=8G
@@ -24,10 +24,9 @@ fi
 seed=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $2}' ${CONFIG})
 batchsize=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $3}' ${CONFIG})
 task=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $4}' ${CONFIG})
-asset_dir=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $5}' ${CONFIG})
-n_start=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $6}' ${CONFIG})
-iterations=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $7}' ${CONFIG})
-model=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $8}' ${CONFIG})
+n_start=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $5}' ${CONFIG})
+iterations=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $6}' ${CONFIG})
+model=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $7}' ${CONFIG})
 
 conda activate corel-env
 echo "python ${COREL_DIR}/experiments/run_cold_warm_start_experiments_gfp_bo.py -b ${batchsize} -s ${seed} -p ${task} -n ${n_start} -m ${NUM_ITERATIONS} --model ${model}"
