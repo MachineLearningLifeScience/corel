@@ -1,6 +1,8 @@
 from pathlib import Path
+
 import numpy as np
 import tensorflow as tf
+
 # addition in tf.__version__ == 2.15.0
 tf.experimental.numpy.experimental_enable_numpy_behavior(prefer_float32=False, dtype_conversion_mode="legacy")
 from corel.weightings.vae.cbas.make_vae import build_vae
@@ -38,8 +40,9 @@ class CBASVAEWrapper:
         # TODO: filter to constant length, do NOT return all available data, only the one used during training!
         if not self.training_data.exists():
             raise ValueError("The specified path does not contain GFP training data!")
-        train_data = np.genfromtxt(str(self.training_data), delimiter=",", skip_header=1, dtype=None)
-        train_sequences = [x[-1].decode("utf-8") for x in train_data]
+        train_data = np.genfromtxt(str(self.training_data), delimiter=",", skip_header=1, 
+                            dtype=[int, int, int, 'U500', int, int, int, float, float, 'U500'])
+        train_sequences = [x[-1] for x in train_data]
         train_sequences_unique = []
         for s in train_sequences:  # obtain unique sequences
             if s not in train_sequences_unique:
