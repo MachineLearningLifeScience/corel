@@ -4,7 +4,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem-per-cpu=8G
-#SBATCH --array=0-596
+#SBATCH --array=0-596%15
 #SBATCH --time=3-12:00:00
 
 HOME_DIR=/home/pcq275/
@@ -29,8 +29,8 @@ iterations=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $6}' ${CO
 model=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $7}' ${CONFIG})
 
 conda activate corel-env
-echo "python ${COREL_DIR}/experiments/run_cold_warm_start_experiments_gfp_bo.py -b ${batchsize} -s ${seed} -p ${task} -n ${n_start} -m ${NUM_ITERATIONS} --model ${model}"
-python ${COREL_DIR}/experiments/run_cold_warm_start_experiments_gfp_bo.py -b ${batchsize} -s ${seed} -p ${task} -n ${n_start} -m ${NUM_ITERATIONS} --model ${model}
+echo "python ${COREL_DIR}/experiments/run_cold_warm_start_experiments_gfp_bo.py -b ${batchsize} -s ${seed} -p ${task} -n ${n_start} -m ${iterations} --model ${model}"
+python ${COREL_DIR}/experiments/run_cold_warm_start_experiments_gfp_bo.py -b ${batchsize} -s ${seed} -p ${task} -n ${n_start} -m ${iterations} --model ${model}
 
 
 exit 0
