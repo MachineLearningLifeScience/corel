@@ -31,7 +31,7 @@ n_start=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $6}' ${CONFI
 iterations=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $7}' ${CONFIG})
 
 conda activate corel-env
-echo "python ${COREL_DIR}/experiments/run_cold_warm_start_experiments_rfp_bo.py -b ${batchsize} -s ${seed} -p ${task} -n ${n_start} -m ${NUM_ITERATIONS}"
-python ${COREL_DIR}/experiments/run_cold_warm_start_experiments_rfp_bo.py -b ${batchsize} -s ${seed} -p ${task} -n ${n_start} -m ${NUM_ITERATIONS}
+echo "python ${COREL_DIR}/experiments/run_cold_warm_start_experiments_rfp_bo.py -b ${batchsize} -s ${seed} -p ${task} -d ${asset_dir} -n ${n_start} -m ${iterations}"
+python ${COREL_DIR}/experiments/run_cold_warm_start_experiments_rfp_bo.py -b ${batchsize} -s ${seed} -p ${task} -d ${asset_dir} -n ${n_start} -m ${iterations}
 
 exit 0
