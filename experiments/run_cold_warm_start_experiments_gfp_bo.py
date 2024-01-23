@@ -117,7 +117,7 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
     y0 = _y0[:batch]
 
     # apply standardization
-    y0, y_mu, y_sigma = standardize(y0)
+    # y0, y_mu, y_sigma = standardize(y0)
     L = problem_info.get_max_sequence_length()
     AA = len(problem_info.get_alphabet())
 
@@ -138,11 +138,11 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
         else:
             raise ValueError("Selecting unlabelled sequences for product kernel failed!\nPick strategy {sample , distance}")
         init_data_int = transform_string_sequences_to_integer_arrays(init_data, L, aa_int_mapping)
-        model = model_class(weighting, AA=AA, L=L, unlabelled_data=init_data_int)
+        model = model_class(weighting, AA=AA, L=L, unlabelled_data=init_data_int, aa_int_mapping=aa_int_mapping)
     else:
         model = model_class(weighting, AA)
 
-    def f_wrapper(x, f=_f, aa_mapping: dict=int_aa_mapping, model=model, context=None, problem=problem, y_mu=y_mu, y_sigma=y_sigma):
+    def f_wrapper(x, f=_f, aa_mapping: dict=int_aa_mapping, model=model, context=None, problem=problem):
         info("Querying black-box")
         _x = x.numpy()
         # convert int tensor to AA strings
@@ -155,7 +155,8 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
             context = model.get_context()
         seqs = np.array([list(_s) for _s in sequences])
         f_batch = f(seqs, context) # batched calls
-        f_val = (f_batch - y_mu) / y_sigma # standardize observations
+        # f_val = (f_batch - y_mu) / y_sigma # standardize observations
+        f_val = f_batch
         return tf.constant(f_val)
 
     X_train = transform_string_sequences_to_integer_arrays(x0, L, aa_int_mapping)
@@ -184,7 +185,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Experiment Specifications Cold to Warm-Start")
     parser.add_argument("-s", "--seed", type=int, default=0, help="Random seed for experiments.")
     parser.add_argument("-m", "--max_evaluations", type=int, default=100, help="Optimization budget, number of possible observations.")
-    parser.add_argument("-p", "--problem", type=str, choices=PROBLEM_NAMES, default=PROBLEM_NAMES[1], help="Problem description as string key.")
+    parser.add_argument("-p", "--problem", type=str, choices=PROBLEM_NAMES, default=PROBLEM_NAMES[0], help="Problem description as string key.")
     parser.add_argument("-b", "--batch", type=int, default=10)
     parser.add_argument("-n", "--number_observations", type=int, choices=AVAILABLE_SEQUENCES_N, default=AVAILABLE_SEQUENCES_N[-1])
     parser.add_argument("-v", "--verbose", action="store_true")
