@@ -137,7 +137,7 @@ class LVMModel(TrainableProbabilisticModel):
         # pred_mean, pred_var = self.model.predict_f(ps[tf.newaxis,...]) # expects [B, N, D] inputs
         # manually compute posterior predictive
         X, Y = self.model.data
-        x = tf.reshape(x, shape=(X.shape[0], int(self.len*self.aa)))
+        x = tf.reshape(x, shape=(x.shape[0], int(self.len*self.aa)))
         prior_mean, prior_amp = get_mean_and_amplitude(L=self.L, Y=Y)
         alphas = tf.linalg.triangular_solve(self.L, Y-prior_mean, lower=True)
         K_Xx = self.model.kernel(X[tf.newaxis,...], x[tf.newaxis,...]).reshape(X.shape[0], x.shape[0]) # drop batch dimensions at index [0, 2]
