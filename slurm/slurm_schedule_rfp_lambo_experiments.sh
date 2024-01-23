@@ -9,6 +9,7 @@
 
 HOME_DIR=/home/pcq275/
 LAMBO_DIR=${HOME_DIR}/lambo/
+COREL_DIR=${HOME_DIR}/corel/
 
 
 CONDA_BASE=$(conda info --base)
