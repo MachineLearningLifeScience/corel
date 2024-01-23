@@ -28,6 +28,7 @@ from corel.util.constants import ALGORITHM, BATCH_SIZE, MODEL, SEED, STARTING_N
 from corel.util.util import (get_amino_acid_integer_mapping_from_info,
                              transform_string_sequences_to_integer_arrays)
 from corel.weightings.vae.cbas import CBASVAEWeightingFactory
+from experiments.references import CBasReferenceModel
 
 tf.config.run_functions_eagerly(True)
 
@@ -48,7 +49,8 @@ PROBLEM_NAMES = ["gfp_cbas_gp", "gfp_cbas_elbo"] # TODO: ELBO evaluation current
 
 MODEL_CLASS = {
         ProteinModel.__name__: ProteinModel, 
-        LVMModel.__name__: LVMModel
+        LVMModel.__name__: LVMModel,
+        "CBas": CBasReferenceModel, # TODO: implement  
         }
 
 LOG_POST_PERFORMANCE_METRICS = False
