@@ -9,7 +9,7 @@
 
 HOME_DIR=/home/pcq275/
 COREL_DIR=${HOME_DIR}/corel/
-
+CONFIG=${COREL_DIR}slurm/gfp_config_corel.txt
 
 CONDA_BASE=$(conda info --base)
 source ${CONDA_BASE}/etc/profile.d/conda.sh
