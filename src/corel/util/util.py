@@ -2,8 +2,8 @@ __author__ = 'Simon Bartels'
 
 import numpy as np
 import tensorflow as tf
-from poli.core.problem_setup_information import ProblemSetupInformation
 from gpflow import default_float
+from poli.core.problem_setup_information import ProblemSetupInformation
 
 from corel.util.constants import PADDING_SYMBOL_INDEX
 

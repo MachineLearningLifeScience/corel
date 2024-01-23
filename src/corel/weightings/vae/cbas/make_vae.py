@@ -3,9 +3,12 @@ CBAS VAE architecture and training from existing models.
 """
 
 import os
+
 import numpy as np
 
-from corel.weightings.vae.cbas.losses import summed_categorical_crossentropy, identity_loss
+from corel.weightings.vae.cbas.losses import (identity_loss,
+                                              summed_categorical_crossentropy)
+
 #from cbas_vae.util import get_experimental_X_y
 
 # added by Simon
@@ -67,10 +70,11 @@ def build_vae(latent_dim, n_tokens=4, seq_length=33, enc1_units=50, eps_std=1., 
 
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.python.keras import backend as K
 from tensorflow.keras.callbacks import Callback
-from tensorflow.keras.layers import Layer, Input, Lambda, Add, Multiply, Dense, Flatten, Reshape
+from tensorflow.keras.layers import (Add, Dense, Flatten, Input, Lambda, Layer,
+                                     Multiply, Reshape)
 from tensorflow.keras.models import Model
+from tensorflow.python.keras import backend as K
 
 # commented out by Simon
 #tf.compat.v1.disable_v2_behavior()
