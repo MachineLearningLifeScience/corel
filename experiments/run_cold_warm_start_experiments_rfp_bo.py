@@ -28,9 +28,6 @@ from corel.util.util import (get_amino_acid_integer_mapping_from_info,
 from corel.weightings.hmm.hmm_factory import HMMFactory
 from corel.weightings.vae.base.vae_factory import VAEFactory
 
-# from corel.observers.poli_lambo_logger import PoliLamboLogger
-# from corel.observers.poli_base_logger import PoliBaseMlFlowObserver
-
 COREL_DIR = Path(__file__).parent.parent.resolve()
 
 problem_model_mapping = {
@@ -47,7 +44,8 @@ TRACKING_URI = f"file:{str(COREL_DIR)}/results/mlruns/"
 
 AVAILABLE_WEIGHTINGS = [HMMFactory, VAEFactory]
 # number of available observation from cold (3) to warm (250+) start
-AVAILABLE_SEQUENCES_N = [3, 16, 50, 512]
+AVAILABLE_SEQUENCES_N = [3, 6, 16, 50, 512]
+# Pareto Front is size is 6 , additional sequences added at random, 512 is complete number of sequences
 
 RFP_PROBLEM_NAMES = list(problem_model_mapping.keys())
 
