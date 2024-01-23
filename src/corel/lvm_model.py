@@ -72,9 +72,12 @@ class LVMModel(TrainableProbabilisticModel):
         """
         if self.reference_data is not None:
             logging.info(f"Computing weighting for {len(self.reference_data)} reference sequences")
+            int_ref_seqs = tf.argmax(self.reference_data, axis=-1)
             encoding_mu = self.encoder(self.reference_data)[0]
             weighting_matrix = self.decoder(encoding_mu)
-            expectations = self.distribution.expectation(self.reference_data)
+            n_indices, l_indices = tf.meshgrid(tf.range(int_ref_seqs.shape[0], dtype=tf.int64), tf.range(int_ref_seqs.shape[1], dtype=tf.int64), indexing='ij')
+            weight_matrix_at_positions = tf.gather_nd(weighting_matrix, tf.stack([n_indices, l_indices, int_ref_seqs], axis=-1))
+            expectations = tf.reduce_prod(weight_matrix_at_positions, axis=-1)
         else:
             raise RuntimeError("No weighting matrix provided!\nSpecify unlabelled_data as input.")
         return weighting_matrix, expectations
