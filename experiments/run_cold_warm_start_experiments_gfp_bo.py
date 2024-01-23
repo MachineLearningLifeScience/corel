@@ -138,7 +138,7 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
         else:
             raise ValueError("Selecting unlabelled sequences for product kernel failed!\nPick strategy {sample , distance}")
         init_data_int = transform_string_sequences_to_integer_arrays(init_data, L, aa_int_mapping)
-        model = model_class(weighting, AA=AA, L=L, unlabelled_data=init_data_int, aa_int_mapping=aa_int_mapping)
+        model = model_class(weighting, AA=AA, L=L, unlabelled_data=init_data_int)
     else:
         model = model_class(weighting, AA)
 
