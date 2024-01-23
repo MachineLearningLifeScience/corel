@@ -19,11 +19,11 @@ LOG_DIR="${COREL_DIR}/results/log/"
 ## Require task specifications on poli side to be included in hydra search path
 # Lambo original proxy_rfp task:
 cd ${LAMBO_DIRECTORY}
-python ${LAMBO_DIRECTORY}/scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=proxy_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=2 optimizer.num_rounds=${NUM_ITERATIONS} | tee ${LOG_DIR}rfp_ref.log
+python ${LAMBO_DIRECTORY}/scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=proxy_rfp tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=2 optimizer.num_rounds=${NUM_ITERATIONS} 2>&1 | tee ${LOG_DIR}rfp_ref.log
 
 # Lambo proxy_rfp task wrapped as poli task (same setup for benchmarking with the same backend)
 for seed in 0 1 3 5 7 13; do
-    python ${LAMBO_DIRECTORY}scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp_reference tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS} | tee ${LOG_DIR}poli_rfp_reference_${seed}.log
+    python ${LAMBO_DIRECTORY}scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=poli_rfp_reference tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${NUM_ITERATIONS} 2>&1 | tee ${LOG_DIR}poli_rfp_reference_${seed}.log
 done
 
 
