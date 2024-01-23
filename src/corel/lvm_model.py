@@ -10,6 +10,7 @@ import numpy as np
 import tensorflow as tf
 from gpflow import Parameter, default_float
 from gpflow.kernels import Product
+from gpflow.logdensities import multivariate_normal
 from gpflow.models import GPR
 from gpflow.optimizers import Scipy
 from gpflow.utilities import positive, to_default_float
@@ -39,7 +40,6 @@ class LVMModel(TrainableProbabilisticModel):
         self.aa = AA
         self.len = L
         self.batch = batch_size
-        self.ps = None  # distributions of X
         self.X = None  # valid sequences from dataset
         self.y = None  # valid observations from data
         self.L = None  # decomposed matrix
@@ -65,7 +65,7 @@ class LVMModel(TrainableProbabilisticModel):
             one_hot_pts = tf.reshape(one_hot_pts, [one_hot_pts.shape[0], one_hot_pts.shape[1] // self.aa, self.aa])
         return one_hot_pts
 
-    def _compute_weight_matrix_from_reference_sequences(self) -> TensorType:
+    def _compute_weight_matrix_and_expectation_from_reference_sequences(self) -> Tuple[TensorType, TensorType]:
         """
         Encode and obtain decoding distributions for reference_data
             ie. unlabelled data used to train underlying LVM
@@ -74,23 +74,24 @@ class LVMModel(TrainableProbabilisticModel):
             logging.info(f"Computing weighting for {len(self.reference_data)} reference sequences")
             encoding_mu = self.encoder(self.reference_data)[0]
             weighting_matrix = self.decoder(encoding_mu)
+            expectations = self.distribution.expectation(self.reference_data)
         else:
             raise RuntimeError("No weighting matrix provided!\nSpecify unlabelled_data as input.")
-        return weighting_matrix
-
+        return weighting_matrix, expectations
 
     def _init_model(self, init_data_var=0.01) -> GPR:
         kernels = []
-        weighting_matrix = self._compute_weight_matrix_from_reference_sequences()
-        init_len = max(np.sqrt(np.median(weighting_matrix)), np.exp(-350))
+        # compute sequence likelihoods
+        weighting_matrix, expecations = self._compute_weight_matrix_and_expectation_from_reference_sequences()
+        init_len = max(np.sqrt(np.median(expecations)), np.exp(-350))
         lengthscale = Parameter(init_len, transform=positive(), name="lengthscale")
         for _p in weighting_matrix:
             assert _p.shape[0] == self.len and _p.shape[1] == self.aa
             kernels.append(WeightedHellinger(w=_p, AA=self.aa, L=self.len, lengthscale=lengthscale))
         info("Composing wHK to product kernel")
-        # TODO: enforce shared length-scale
         self._kernel = Product(kernels=kernels, name="product_whk")
-        model = GPR((self.ps, self.y), kernel=self._kernel)
+        oh_sequences = tf.reshape(tf.one_hot(self.X, self.aa), shape=(self.X.shape[0], self.len*self.aa))
+        model = GPR((oh_sequences, self.y), kernel=self._kernel)
         model.likelihood.variance = Parameter(init_data_var, transform=positive(), name="noise") # TODO: better initial value here
         return model
 
@@ -117,40 +118,30 @@ class LVMModel(TrainableProbabilisticModel):
             _valid = self._test_validity_data_observations(query_points=valid_query_points[:oldN, ...], observations=valid_observations[:oldN, ...])
         else:
             oldN = 0
-        info("Computing sequence probabilities...")
-        one_hot_querypoints = tf.one_hot(valid_query_points[oldN:, ...], self.aa)
-        psnew = to_default_float(self.decoder(self.encoder(one_hot_querypoints)[0]))
-        psnew = tf.reshape(psnew, shape=(psnew.shape[0], self.len*self.aa))
-        if self.ps is None:
-            self.ps = psnew
-        else:
-            self.ps = tf.concat([self.ps, psnew], axis=0)
-        assert self.ps.shape[0] == valid_observations.shape[0] and int(self.ps.shape[1]) == int(self.len*self.aa)
         self.X = valid_query_points
         self.y = valid_observations
         if self.model is None:
             self.model = self._init_model()
         self._optimized = False
 
-    def _predict_on_query(self, ps: TensorType) -> Tuple[TensorType, TensorType]:
+    def _predict_on_query(self, x: TensorType) -> Tuple[TensorType, TensorType]:
         """
         Input: probability (decoder) matrix
         Solve for posterior predictive of GP using cholesky decomposed data matrix ()
         return predictive mean and variance
         """
         # assert ps.shape[0] == 1
-        ps = tf.reshape(ps, shape=(ps.shape[0], self.len*self.aa))
         # FIXME: predict_f fails due to batch shape mismatches within the posterior computation! Input [B, N, D] only [N, D] gets passed through, returns [N, N] shape-check fail!
         # pred_mean, pred_var = self.model.predict_f(ps[tf.newaxis,...]) # expects [B, N, D] inputs
         # manually compute posterior predictive
         X, Y = self.model.data
         prior_mean, prior_amp = get_mean_and_amplitude(L=self.L, Y=Y)
         alphas = tf.linalg.triangular_solve(self.L, Y-prior_mean, lower=True)
-        K_Xx = self.model.kernel(X[tf.newaxis,...], ps[tf.newaxis,...]).reshape(X.shape[0], ps.shape[0]) # drop batch dimensions at index [0, 2]
+        K_Xx = self.model.kernel(X[tf.newaxis,...], x[tf.newaxis,...]).reshape(X.shape[0], x.shape[0]) # drop batch dimensions at index [0, 2]
         L_x_solve = tf.transpose(tf.linalg.triangular_solve(self.L, K_Xx, lower=True))
         # TODO: test predictive posterior computation
         pred_mean = L_x_solve @ alphas + prior_mean
-        pred_var = prior_amp * tf.ones((ps.shape[0], 1), dtype=tf.float64) - tf.expand_dims(tf.reduce_sum(tf.square(L_x_solve), axis=-1), axis=1)
+        pred_var = prior_amp * tf.ones((x.shape[0], 1), dtype=tf.float64) - tf.expand_dims(tf.reduce_sum(tf.square(L_x_solve), axis=-1), axis=1)
         return pred_mean, pred_var
 
     def predict(self, query_points: TensorType) -> Tuple[TensorType, TensorType]:
@@ -165,7 +156,6 @@ class LVMModel(TrainableProbabilisticModel):
         if query_points.dtype.is_integer:
             query_points = tf.one_hot(query_points, self.aa, dtype=default_float()) # one-hot query encoding
             query_points = tf.reshape(query_points, shape=(query_points.shape[0], self.len, self.aa))
-            query_points = to_default_float(self.decoder(self.encoder(query_points)[0])) # LVM encoding step
         assert query_points.dtype == default_float()
         pred_mean, pred_var = self._predict_on_query(query_points)
         pred_mean = pred_mean.reshape((query_points.shape[0], 1))
@@ -183,26 +173,42 @@ class LVMModel(TrainableProbabilisticModel):
             raise ValueError(f"Model points, observations invalid w.r.t. input data!\nX={self.X.shape} y={self.y.shape} against query={query_points.shape} obs={observations.shape}") # TODO: make specific
         return True
 
+
     def optimize(self, dataset: Dataset) -> None:
         if dataset.observations.shape[1] > 1:
             raise NotImplementedError("Only 1D case implemented!")
+        X, Y = self.model.data
+        def _opt_closure():
+            def opt_criterion():
+                ks = self._kernel(tf.one_hot(X))
+                try:
+                    L = tf.linalg.cholesky(ks)
+                except Exception as e:
+                    logging.exception(e)
+                    raise e
+                m, r = get_mean_and_amplitude(L, Y)
+                log_prob = multivariate_normal(Y, m * tf.ones([L.shape[0], 1], default_float()), tf.sqrt(r) * L)
+                nll = -tf.reduce_sum(log_prob)
+                if not tf.math.is_finite(nll):
+                    return tf.convert_to_tensor(np.inf)
+                return nll
+            return opt_criterion
         # NOTE: below becomes a redundant check with replaced NaNs we ask for self.X==self.X
-        # _valid_data = self._test_validity_data_observations(query_points=self.X, observations=self.y)
+        X, Y = self.model.data
         opt = Scipy()
-        opt.minimize(self.model.training_loss, 
+        opt.minimize(_opt_closure(), 
                     self.model.trainable_variables, 
                     bounds=[(np.exp(-350), None), # constraint length_scale, prohibit values close to or equal zero
                         (0, 1)], # constrain noise to zero-one range
                     )
-        X, Y = self.model.data
         self.L = tf.linalg.cholesky(self.model.kernel(X))
         _len, _var = self.model.trainable_parameters
-        prior_mean, prior_amp = get_mean_and_amplitude(self.L, Y)
         self.noise = _var
         self.log_lengthscale = tf.math.log(_len)
-        self.kern_mean = prior_mean
-        self.kern_amplitude = prior_amp
-        self.alpha = tf.linalg.triangular_solve(self.L, Y - prior_mean, lower=True)
+        mean, amp = get_mean_and_amplitude(self.L, Y)
+        self.kern_mean = mean
+        self.kern_amplitude = amp
+        self.alpha = tf.linalg.triangular_solve(self.L, Y - mean, lower=True)
         self._optimized = True
 
     def get_context(self) -> dict:
