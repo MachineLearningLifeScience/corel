@@ -15,6 +15,8 @@ class WeightedHellinger(Hellinger):
         super().__init__(L=L, AA=AA, active_dims=active_dims, name=name)
         if len(w.shape) >= 3:
             w = self.restore(w)
+        w = tf.squeeze(w)
+        assert len(w.shape) == 2, "Weighting vector has too many dimensions!"
         self.w = w  # weighting density vector
         if lengthscale is None:
             lengthscale = gpflow.Parameter(1.0, transform=positive(), dtype=default_float()) # TODO: log transform here?
