@@ -37,15 +37,16 @@ def train_experimental_vaes(latent_dim=20):
                   n_tokens=20,
                   seq_length=X_train.shape[1],
                   enc1_units=50)
-        vae_0.fit([X_train], 
+        vae_0.fit([X_train, np.zeros((X_train.shape[0], latent_dim))], 
                   [X_train, np.zeros(X_train.shape[0])],
                   epochs=100,
                   batch_size=10,
                   verbose=2)
-        output_path = Path(corel.__file__).parent.parent.resolve() / "results" / "models"
-        vae_0.encoder_.save_weights(str(output_path) + f"/models/vae_0_encoder_weights{suffix}_{RANDOM_STATE}.h5")
-        vae_0.decoder_.save_weights(str(output_path) + f"/models/vae_0_decoder_weights{suffix}_{RANDOM_STATE}.h5")
-        vae_0.vae_.save_weights(str(output_path) + f"/models/vae_0_vae_weights{suffix}_{RANDOM_STATE}.h5")
+        output_path = Path(corel.__file__).parent.parent.parent.resolve() / "results" / "models"
+        assert output_path.is_dir(), "Output directory does not exist!"
+        vae_0.encoder_.save_weights(str(output_path) + f"/vae_0_encoder_weights{suffix}_{RANDOM_STATE}.h5")
+        vae_0.decoder_.save_weights(str(output_path) + f"/vae_0_decoder_weights{suffix}_{RANDOM_STATE}.h5")
+        vae_0.vae_.save_weights(str(output_path) + f"/vae_0_vae_weights{suffix}_{RANDOM_STATE}.h5")
 
 
 def build_vae(latent_dim, n_tokens=4, seq_length=33, enc1_units=50, eps_std=1., ):

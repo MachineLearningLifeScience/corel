@@ -1,5 +1,7 @@
 __author__ = 'Simon Bartels'
 
+import random
+
 import numpy as np
 import tensorflow as tf
 from gpflow import default_float
@@ -14,6 +16,7 @@ def get_amino_acid_integer_mapping_from_info(setup_info: ProblemSetupInformation
     assert(PADDING_SYMBOL_INDEX == 0)
     return {alphabet[i]: i+offset for i in range(len(alphabet))}
 
+
 def _transform_string_sequences_to_integer_arrays(train_x_, L, amino_acid_integer_mapping) -> np.ndarray:
     train_x = np.zeros([len(train_x_), L], dtype=int)
     assert(PADDING_SYMBOL_INDEX == 0)
@@ -25,11 +28,13 @@ def _transform_string_sequences_to_integer_arrays(train_x_, L, amino_acid_intege
     
     return train_x
 
+
 def transform_string_sequences_to_integer_arrays(train_x_, L, amino_acid_integer_mapping) -> tf.Tensor:
     # the assertion below is only valid if sequences are not aligned
     #assert(PADDING_SYMBOL_INDEX not in amino_acid_integer_mapping.values())
     train_x = _transform_string_sequences_to_integer_arrays(train_x_, L, amino_acid_integer_mapping)
     return tf.constant(train_x)
+
 
 def transform_string_sequences_to_string_arrays(train_x_: np.ndarray, L: int) -> np.ndarray:
     train_x = np.zeros([len(train_x_), L], dtype=str)
@@ -40,6 +45,7 @@ def transform_string_sequences_to_string_arrays(train_x_: np.ndarray, L: int) ->
     
     return train_x
 
+
 def handle_batch_shape(X: tf.Tensor) -> tf.Tensor:
     if len(X.shape) == 4:
         if X.shape[0] == 1:
@@ -49,3 +55,10 @@ def handle_batch_shape(X: tf.Tensor) -> tf.Tensor:
         else:
             raise NotImplementedError(f"{X.shape}")
     return X
+
+
+def set_seeds(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+    return
