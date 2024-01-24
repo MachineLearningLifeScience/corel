@@ -3,38 +3,49 @@ CBAS VAE architecture and training from existing models.
 """
 
 import os
+from pathlib import Path
 
 import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.callbacks import Callback
+from tensorflow.keras.layers import (Add, Dense, Flatten, Input, Lambda, Layer,
+                                     Multiply, Reshape)
+from tensorflow.keras.models import Model
+from tensorflow.python.keras import backend as K
 
+import corel
 from corel.weightings.vae.cbas.losses import (identity_loss,
                                               summed_categorical_crossentropy)
-
-#from cbas_vae.util import get_experimental_X_y
+from corel.weightings.vae.cbas.util import get_experimental_X_y
 
 # added by Simon
 MAKE_DETERMINISTIC = True
 
 
-def train_experimental_vaes():
+def train_experimental_vaes(latent_dim=20):
     """Trains and saves VAEs on the GFP data for use in the weighted ML methods"""
     TRAIN_SIZE = 5000
-    train_size_str = "%ik" % (TRAIN_SIZE/1000)
-    suffix = '_%s' % train_size_str
+    train_size_str = f"{(TRAIN_SIZE/1000)}k" 
+    suffix = f"_{train_size_str}"
+    if latent_dim != 20:
+        suffix += f"_d{latent_dim}"
     for i in [0, 2]:
         RANDOM_STATE = i + 1
         X_train, _, _  = get_experimental_X_y(random_state=RANDOM_STATE, train_size=TRAIN_SIZE)
-        vae_0 = build_vae(latent_dim=20,
+        vae_0 = build_vae(latent_dim=latent_dim,
                   n_tokens=20,
                   seq_length=X_train.shape[1],
                   enc1_units=50)
-        vae_0.fit([X_train], [X_train, np.zeros(X_train.shape[0])],
+        vae_0.fit([X_train], 
+                  [X_train, np.zeros(X_train.shape[0])],
                   epochs=100,
                   batch_size=10,
                   verbose=2)
-        prefix = os.path.dirname(os.path.abspath(__file__))
-        vae_0.encoder_.save_weights(prefix + "/models/vae_0_encoder_weights%s_%i.h5"% (suffix, RANDOM_STATE))
-        vae_0.decoder_.save_weights(prefix + "/models/vae_0_decoder_weights%s_%i.h5"% (suffix, RANDOM_STATE))
-        vae_0.vae_.save_weights(prefix + "/models/vae_0_vae_weights%s_%i.h5"% (suffix, RANDOM_STATE))
+        output_path = Path(corel.__file__).parent.parent.resolve() / "results" / "models"
+        vae_0.encoder_.save_weights(str(output_path) + f"/models/vae_0_encoder_weights{suffix}_{RANDOM_STATE}.h5")
+        vae_0.decoder_.save_weights(str(output_path) + f"/models/vae_0_decoder_weights{suffix}_{RANDOM_STATE}.h5")
+        vae_0.vae_.save_weights(str(output_path) + f"/models/vae_0_vae_weights{suffix}_{RANDOM_STATE}.h5")
 
 
 def build_vae(latent_dim, n_tokens=4, seq_length=33, enc1_units=50, eps_std=1., ):
@@ -67,17 +78,6 @@ def build_vae(latent_dim, n_tokens=4, seq_length=33, enc1_units=50, eps_std=1., 
                   loss=losses)
 
     return model
-
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras.callbacks import Callback
-from tensorflow.keras.layers import (Add, Dense, Flatten, Input, Lambda, Layer,
-                                     Multiply, Reshape)
-from tensorflow.keras.models import Model
-from tensorflow.python.keras import backend as K
-
-# commented out by Simon
-#tf.compat.v1.disable_v2_behavior()
 
 """
 Module for extendable variational autoencoders.
@@ -472,4 +472,5 @@ class SimpleSupervisedVAE(SimpleVAE, BaseSupervisedVAE):
 
 
 if __name__ =='__main__':
-    train_experimental_vaes()
+    # train_experimental_vaes()
+    train_experimental_vaes(latent_dim=2)
