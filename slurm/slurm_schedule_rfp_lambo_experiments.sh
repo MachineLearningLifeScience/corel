@@ -32,7 +32,7 @@ n_start=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $6}' ${CONFI
 iterations=$(awk -v ArrayID=${SLURM_ARRAY_TASK_ID} '$1==ArrayID {print $7}' ${CONFIG})
 
 conda activate poli__lambo
-echo "python ${LAMBO_DIR}/scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=${task} tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${iterations} task.num_start_examples=${n_start} +task.data_path=${asset_dir}"
-python ${LAMBO_DIR}/scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=${task} tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${iterations} task.num_start_examples=${n_start} +task.data_path=${asset_dir}
+echo "python ${LAMBO_DIR}/scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=${task} tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${iterations} task.num_start_examples=${n_start} task.batch_size=${batchsize} +task.data_path=${asset_dir}"
+python ${LAMBO_DIR}/scripts/black_box_opt.py optimizer=lambo optimizer.encoder_obj=mlm task=${task} tokenizer=protein surrogate=multi_task_exact_gp acquisition=nehvi trial_id=${seed} optimizer.num_rounds=${iterations} task.num_start_examples=${n_start} task.batch_size=${batchsize} +task.data_path=${asset_dir}
 
 exit 0
