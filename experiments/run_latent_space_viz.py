@@ -1,152 +1,101 @@
 import argparse
-import os
-import numpy as np
-# os.environ["TF_CPP_MIN_LOG_LEVEL"] = "4"
-import tensorflow as tf
-import matplotlib.pyplot as plt
-from typing import Tuple
+from pathlib import Path
 
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
 from gpflow import default_float, set_trainable
+from gpflow.kernels import Matern52
 from gpflow.logdensities import multivariate_normal
 from gpflow.optimizers import Scipy
-from gpflow.kernels import Matern52
+from poli import objective_factory
+from poli.objective_repository import gfp_cbas
+from sklearn.decomposition import PCA
+from scipy.interpolate import griddata
 
+import corel
+from corel.kernel import Hellinger, WeightedHellinger
+from corel.util.constants import (ALGORITHM, BATCH_SIZE, MODEL,
+                                  PADDING_SYMBOL_INDEX, SEED, STARTING_N)
+from corel.util.util import (get_amino_acid_integer_mapping_from_info,
+                             set_seeds,
+                             transform_string_sequences_to_integer_arrays)
+from corel.weightings.hmm.hmm_factory import HMMFactory
 from corel.weightings.vae.base.models import VAE
 from corel.weightings.vae.base.train_vae import _preprocess
 from corel.weightings.vae.base.vae_factory import VAEFactory
-from corel.weightings.hmm.hmm_factory import HMMFactory
-from corel.kernel import Hellinger
-from corel.kernel import WeightedHellinger
-from visualization.kernel_viz import plotkernelsample_in_R
-from visualization.kernel_viz import plotkernelsample_in_Ps
-from visualization.kernel_viz import plotlatentspace_lvm
-from visualization.kernel_viz import plotlatentspace_lvm_refpoint
-
-# TODO: this is bad practice, ADD experiments module to setup cfg
-import sys
-if "/Users/rcml/corel/" not in sys.path:
-    sys.path.append("/Users/rcml/corel/")
-from experiments.assets.data.rfp_fam import rfp_train_dataset, rfp_test_dataset
-from experiments.assets.data.blat_fam import blat_train_dataset, blat_test_dataset
+from corel.weightings.vae.cbas import CBASVAEWeightingFactory
+from visualization.kernel_viz import (plotkernelsample_in_Ps,
+                                      plotkernelsample_in_R,
+                                      plotlatentspace_lvm,
+                                      plotlatentspace_lvm_refpoint)
+from visualization.latent_viz import latent_space_fig
 
 
-def run_latent_space_visualization(
-    seed: int, model_factory: str, data_key: str, train_dataset, test_dataset,
-    val_range: tuple=(-1,-1), ref_point: tuple=(0,0)
-    ) -> None:
-    np.random.seed(seed)
-    tf.random.set_seed(seed)
-    x1, x2 = val_range
+def run_gfp_latent_visualization(seed: int=0, val_range=(-1.5,1.5), n_observation: int=10000, suffix: str=""):
+    set_seeds(seed)
+    caller_info = {
+        BATCH_SIZE: None,
+        SEED: seed,
+        STARTING_N: n_observation,
+        MODEL: None,
+        ALGORITHM: "VISUALIZATION",
+    }
+    problem = "gfp_cbas_vae"
+    problem_info, _f, _x0, _y0, _ = objective_factory.create(
+        name=problem,
+        seed=seed,
+        caller_info=caller_info,
+        batch_size=None, # determines return shape of y0
+        observer=None,
+        force_register=True,
+        parallelize=False,
+        problem_type=problem.split("_")[-1]
+    )
+    # explicitly load the 2D VAE for the problem
+    vae_model_path = Path(corel.__file__).parent.parent.parent.resolve() / "results" / "models"
+    weighting = CBASVAEWeightingFactory().create(problem_info=problem_info, model_path=vae_model_path, latent_dim=2)
+    all_sequences = weighting.get_training_data()
 
-    x0 = next(iter(train_dataset))[0][0]
+    L = problem_info.get_max_sequence_length()
+    AA = len(problem_info.get_alphabet())
 
-    ## LOAD LVM MODEL
-    p_model = model_factory.create(None)
-
-    # VISUALIZE 2D Latent space all points against each other...
-    fig, ax = plt.subplots(1, 2, figsize=(15, 7), sharex=True, sharey=True, squeeze=False)
-    plotlatentspace_lvm(Matern52(), p_model, ax=ax[0,0], xmin=x1, xmax=x2)
-    L, n_cat = p_model.encoder.input_dims
-    plotlatentspace_lvm(Hellinger(L=L, AA=n_cat), p_model, ax=ax[0,1], xmin=x1, xmax=x2)
-    # TODO: add weighted Hellinger Kernel
-    # weighted hellinger kernel with p0
-    p0 = p_model.p(tf.zeros((1,2)))
-    # plotlatentspace_lvm(WeightedHellinger(p=p0, L=L, AA=n_cat), p_model, ax=ax[0,2], xmin=x1, xmax=x2)
-    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_all_Matern52_Hellinger_{data_key}.png")
-    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_all_Matern52_Hellinger_{data_key}.pdf")
-    plt.show()
+    aa_int_mapping = get_amino_acid_integer_mapping_from_info(problem_info)
+    int_aa_mapping = {aa_int_mapping[a]: a for a in aa_int_mapping.keys()}
+    # TODO: subset for development FIXME
+    all_sequences_int = transform_string_sequences_to_integer_arrays(all_sequences[:10000], L, aa_int_mapping)
+    gfp_labels_path = Path(gfp_cbas.__file__).parent.resolve() / "assets" / "gfp_gt_evals.npy"
+    # this is Nucleotide sequence for reference
+    reference_sequence_fasta = Path(gfp_cbas.__file__).parent.resolve() / "assets" / "avGFP_reference_sequence.fa"
+    reference_seq = all_sequences[2] # lookup reference_sequence_fasta in original csv
+    labels = np.load(gfp_labels_path)
+    # embedd sequences
+    embedding = weighting.vae.encode(tf.one_hot(all_sequences_int, AA))
+    reference_point = weighting.vae.encode(tf.one_hot(transform_string_sequences_to_integer_arrays(np.atleast_1d(reference_seq), L, aa_int_mapping), AA))
+    title = "GFP VAE"
+    ## 2D VAE space
+    if embedding.shape[-1] > 2:
+        pca = PCA(n_components=2)
+        embedding = pca.fit_transform(embedding)
+        title += " PCA (n=2)"
+    x = embedding[:10000,0]
+    y = embedding[:10000,1]
+    z = labels[:10000]
+    latent_space_fig(x, y, z, title=title)
 
     # VISUALIZE 2D Latent space against reference point
-    fig, ax = plt.subplots(1, 2, figsize=(15, 7), sharex=True, sharey=True, squeeze=False)
-    plotlatentspace_lvm_refpoint(Matern52(), p_model, ax=ax[0,0], xmin=x1, xmax=x2, ref_point=ref_point)
-    L, n_cat = p_model.encoder.input_dims
-    plotlatentspace_lvm_refpoint(Hellinger(L=L, AA=n_cat), p_model, ax=ax[0,1], xmin=x1, xmax=x2, ref_point=ref_point)
-    # weighted hellinger kernel with p0
-    # # TODO: implement weighted HK
-    # p0 = p_model.p(tf.zeros((1,2)))
-    # plotlatentspace_lvm_refpoint(WeightedHellinger(z=p0, L=L, AA=n_cat), p_model, ax=ax[0,2], xmin=x1, xmax=x2)
-    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_{'_'.join([str(x) for x in ref_point])}_Matern52_Hellinger_{data_key}.png")
-    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_{'_'.join([str(x) for x in ref_point])}_Matern52_Hellinger_{data_key}.pdf")
+    fig, ax = plt.subplots(1, 3, figsize=(15, 7), sharex=True, sharey=True, squeeze=False)
+    plt.subplots_adjust(bottom=0.2)
+    img1 = plotlatentspace_lvm_refpoint(Matern52(), weighting, ax=ax[0,0], xmin=val_range[0], xmax=val_range[1], ref_point=reference_point)#, vmin=0.5)
+    _ = plotlatentspace_lvm_refpoint(Hellinger(L=L, AA=AA), weighting, ax=ax[0,1], xmin=val_range[0], xmax=val_range[1], ref_point=reference_point)#, vmin=0.5)
+    # weighted hellinger kernel with
+    weighting_matrix = weighting.vae.decode(reference_point).reshape(L, AA) # transform to [L, AA]
+    _ = plotlatentspace_lvm_refpoint(WeightedHellinger(w=weighting_matrix, L=L, AA=AA), weighting, ax=ax[0,2], xmin=val_range[0], xmax=val_range[1], ref_point=reference_point)#, vmin=0.5)
+    cbar_ax = fig.add_axes([0.15, 0.05, 0.7, 0.05])
+    fig.colorbar(img1, cax=cbar_ax, orientation="horizontal")
+    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_Matern52_Hellinger_{problem}{suffix}.png")
+    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_Matern52_Hellinger_{problem}{suffix}.pdf")
     plt.show()
-
-    # VISUALIZE 2D Latent space against sequences from the training set
-    N = 5
-    L, n_cat = p_model.encoder.input_dims
-    fig, ax = plt.subplots(2, N, figsize=(N*6, N*2), sharex=True, sharey=True, squeeze=False)
-    #first_seq_batch = next(iter(train_dataset))[0]
-    first_seq_batch = next(iter(test_dataset))[0]
-    for i, k in enumerate([Matern52(), Hellinger(L=L, AA=n_cat)]):
-        points = []
-        for j in range(N):
-             # TODO: currently sample from training BUT we may want the observed RFP sequences here
-            seq_i = first_seq_batch[j] # TODO: they are all very close to the center! take elements on the edge of the latent shapes?
-            z_x = p_model.encoder.layers(seq_i[None,:]).mean() # NOTE: one could also take expected value of limited sample
-            z_x = tf.cast(z_x, tf.float64)
-            points.append(list(z_x.numpy()))
-            plotlatentspace_lvm_refpoint(k, p_model, ax=ax[i,j], xmin=x1, xmax=x2, ref_point=z_x)
-            plotlatentspace_lvm_refpoint(k, p_model, ax=ax[i,j], xmin=x1, xmax=x2, ref_point=z_x)
-            # weighted hellinger kernel with p0
-            # # TODO: implement weighted HK
-            # p0 = p_model.p(tf.zeros((1,2)))
-            # plotlatentspace_lvm_refpoint(WeightedHellinger(z=p0, L=L, AA=n_cat), p_model, ax=ax[0,2], xmin=x1, xmax=x2, ref_point=x)
-    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_samples_{N}_Matern52_Hellinger_{data_key}.png")
-    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_samples_{N}_Matern52_Hellinger_{data_key}.pdf")
-    plt.show()
-
-    # VISUALIZE 2D Latent space against other points in latent space
-    L, n_cat = p_model.encoder.input_dims
-    kernel_list = [Matern52(), Hellinger(L=L, AA=n_cat)]
-    points = np.array([[-2, -2], [0, -2], [-2, 0], [2, -2], [-2, 2], [2, 2]])
-    fig, ax = plt.subplots(len(kernel_list), points.shape[0], figsize=(points.shape[0]*6, points.shape[0]*2), sharex=True, sharey=True, squeeze=False)
-    for i, k in enumerate(kernel_list):
-        for j, point in enumerate(points):
-             # TODO: currently sample from training BUT we may want the observed RFP sequences here
-            plotlatentspace_lvm_refpoint(k, p_model, ax=ax[i,j], xmin=x1, xmax=x2, ref_point=tf.convert_to_tensor(point[None,:], dtype=tf.float64))
-            plotlatentspace_lvm_refpoint(k, p_model, ax=ax[i,j], xmin=x1, xmax=x2, ref_point=tf.convert_to_tensor(point[None,:], dtype=tf.float64))
-            # weighted hellinger kernel with p0
-            # # TODO: implement weighted HK
-            # p0 = p_model.p(tf.zeros((1,2)))
-            # plotlatentspace_lvm_refpoint(WeightedHellinger(z=p0, L=L, AA=n_cat), p_model, ax=ax[0,2], xmin=x1, xmax=x2, ref_point=x)
-    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_{str(points.shape[0])}_latent_points_Matern52_Hellinger.png")
-    plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_{str(points.shape[0])}_latent_points_Matern52_Hellinger.pdf")
-    plt.show()
-
-
-def run_latent_samples_visualization(model_factory: object, data_key: str, train_dataset, test_dataset):
-    fig, ax = plt.subplots(1, 1, figsize=(8,8))
-    alpha = 0.25 if "blat" not in data_key else 0.15
-    ## LOAD LVM MODEL
-    p_model = model_factory.create(None)
-    z_coords = []
-    for _batch, _ in train_dataset: # TODO: compute for all data
-        z_dist_batch = p_model.encoder.layers(_batch)
-        mean_coords = z_dist_batch.mean().numpy()
-        z_coords.append(mean_coords)
-    for _batch, _ in test_dataset:
-        z_dist_batch = p_model.encoder.layers(_batch)
-        mean_coords = z_dist_batch.mean().numpy()
-        z_coords.append(mean_coords)
-    coords = tf.concat(z_coords, 0).numpy()
-    ax.scatter(coords[:, 0], coords[:, 1], alpha=alpha, s=2)
-    # ax.set_xlim((-5,2))
-    # ax.set_ylim((-6,3))
-    plt.title(f"Latent Representation \n{data_key}")
-    plt.savefig(f"/Users/rcml/corel/results/figures/lvm/latent_z_{data_key}_latent_mean.png")
-    plt.savefig(f"/Users/rcml/corel/results/figures/lvm/latent_z_{data_key}_latent_mean.pdf")
-    plt.show()
-
-
-def load_dataset(data_key: str) -> Tuple[tf.Tensor]:
-    ## LOAD DATASET
-    if data_key.lower() == "rfp_fam":
-        train_dataset = rfp_train_dataset.map(_preprocess).batch(128).prefetch(tf.data.AUTOTUNE).shuffle(42)
-        test_dataset = rfp_test_dataset.map(_preprocess).batch(128).prefetch(tf.data.AUTOTUNE)
-    elif data_key.lower() == "blat_fam":
-        train_dataset = blat_train_dataset.map(_preprocess).batch(128).prefetch(tf.data.AUTOTUNE).shuffle(42)
-        test_dataset = blat_test_dataset.map(_preprocess).batch(128).prefetch(tf.data.AUTOTUNE)
-    else:
-        raise ValueError("Specify dataset from list of available datasets!")
-    return train_dataset, test_dataset
 
 
 if __name__ == '__main__':
@@ -155,23 +104,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("-s", "--seed", help="Seed for distributions and random sampling of values.", type=int, default=0)
     #parser.add_argument("--samples", help="Number of samples to compute values.", type=int, default=2000)
-    parser.add_argument("--ranges", help="Samples of latent space are in ranges (x1, x2)\in R", type=tuple, default=(-4, 4))
+    parser.add_argument("--ranges", help="Samples of latent space are in ranges (x1, x2)\in R", type=tuple, default=(-1.5, 1))
     parser.add_argument("-m", "--model", help="Latent model factory identifier", type=str, choices=model_list, default="vae")
     parser.add_argument("--reference", help="Reference point in LVM", type=tuple, default=(0,0))
     parser.add_argument("-d", "--dataset", help="Protein Family, for sample and LVM loading", type=str, choices=data_list, default=data_list[0])
     args = parser.parse_args()
     tf.config.run_functions_eagerly(run_eagerly=True)
 
-    X_train, X_test = load_dataset(args.dataset)
-
-    model_factories = {
-        "vae": VAEFactory(f"/Users/rcml/corel/results/models/vae_z_2_{args.dataset}.ckpt", problem_name=args.dataset),
-        "hmm": HMMFactory("./assets/hmms/rfp.hmm", None)
-    }
-
-    run_latent_samples_visualization(model_factory=model_factories.get(args.model), data_key=args.dataset,
-                                    train_dataset=X_train, test_dataset=X_test)
-    run_latent_space_visualization(seed=args.seed, data_key=args.dataset,
-        train_dataset=X_train, test_dataset=X_test,
-        val_range=args.ranges, model_factory=model_factories.get(args.model), 
-        ref_point=args.reference)
+    run_gfp_latent_visualization(seed=args.seed, val_range=args.ranges, suffix="_GFP_reference")

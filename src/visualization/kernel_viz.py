@@ -44,23 +44,30 @@ def plotlatentspace_lvm(k: Kernel, lvm: object, ax, xmin: float=-2., xmax: float
     ax.set_title(f"2D Latent Space\n {k.__class__.__name__}", fontsize=20)
     return img
 
-def plotlatentspace_lvm_refpoint(k: Kernel, lvm: object, ax, xmin: float=-2., xmax: float=2., stepsize=0.2, ref_point=(0,0), vmin=0.5, vmax=1., cmap="viridis"):
+def plotlatentspace_lvm_refpoint(k: Kernel, lvm: object, ax, xmin: float=-2., xmax: float=2., stepsize=0.01, ref_point=(0,0), vmin=0., vmax=1., cmap="viridis"):
     xxyy = tf.convert_to_tensor(np.mgrid[xmin:xmax:stepsize, xmin:xmax:stepsize].reshape(2, -1).T)
     if not isinstance(ref_point, tf.Tensor): # convert tuple to tensor
         ref_point = tf.cast(tf.convert_to_tensor(ref_point)[None,:], tf.float64)
     if "hellinger" not in k.__class__.__name__.lower(): # compare euclidean kernels directly in latent space
-        # mean reduction across positions
+        # mean reduction across positions # CASE: Matern
         values = k(xxyy, ref_point)
-    else:
-        ps = lvm.p(xxyy)
-        ps_ref = lvm.p(ref_point) 
-        _ps = tf.squeeze(ps) # NOTE: shape input to be gpflow compliant [batch..., N, D] and D=L*cat
-        ps = tf.reshape(_ps, shape=(_ps.shape[0], _ps.shape[1]*_ps.shape[2])) # keep first batch dim
-        ps_ref = tf.reshape(tf.squeeze(ps_ref), shape=(1, ps_ref.shape[-1]*ps_ref.shape[-2]))
-        values = k(ps,ps_ref) # NOTE: cannot handle singular inputs but requires vector of values instead TODO
+    elif "weighted" not in k.__class__.__name__.lower(): # CASE: base HK
+        decoded_latent = lvm.vae.decode(xxyy) # TODO: this is for the 2D case
+        ps = tf.reshape(tf.squeeze(decoded_latent), shape=(len(decoded_latent), decoded_latent.shape[-1]*decoded_latent.shape[-2]))
+        decoded_reference = lvm.vae.decode(ref_point.reshape(1, 2)) 
+        ps_ref = tf.reshape(tf.squeeze(decoded_reference), shape=(1, decoded_reference.shape[-1]*decoded_reference.shape[-2]))
+        values = k(ps, ps_ref)
+    else: # CASE: wHK
+        decoded_latent = lvm.vae.decode(xxyy)
+        decoded_seq = tf.one_hot(tf.argmax(decoded_latent, axis=-1), k.AA).reshape(1, decoded_latent.shape[0], k.L*k.AA)
+        decoded_reference = lvm.vae.decode(ref_point.reshape(1, 2))
+        decoded_ref_seq = tf.one_hot(tf.argmax(decoded_reference, axis=-1), k.AA).reshape(1, ref_point.shape[0], k.L*k.AA)
+        values = k(decoded_seq, decoded_ref_seq) # NOTE: weighting distribution in weighting vector, use OneHot for X
     values = tf.squeeze(values).numpy()
     im_size = int(np.sqrt(values.shape)) # quadratic image
     ax.imshow(values.reshape((im_size, im_size)), vmin=vmin, vmax=vmax, cmap=cmap)
+    # ax.plot(ref_point, "x", color="darkred" markersize=25.)
+    # TODO: set correct x,y labels
     if isinstance(ref_point, tf.Tensor):
         ref_point = ref_point.numpy()
-    ax.set_title(f"z={str(list(ref_point))}\n {k.__class__.__name__}", fontsize=9)
+    ax.set_title(f"z=[{str(ref_point[0])}, {str(ref_point[1])}]\n {k.__class__.__name__}", fontsize=23)
