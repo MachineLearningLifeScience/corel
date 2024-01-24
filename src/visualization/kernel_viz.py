@@ -1,8 +1,8 @@
-from gpflow.kernels import Kernel
-import numpy as np
-import tensorflow as tf
 import gpflow
 import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+from gpflow.kernels import Kernel
 
 
 def plotkernelsample_in_R(k: Kernel, ax, xmin: float=-3., xmax: float=3.):
@@ -68,6 +68,7 @@ def plotlatentspace_lvm_refpoint(k: Kernel, lvm: object, ax, xmin: float=-2., xm
     ax.imshow(values.reshape((im_size, im_size)), vmin=vmin, vmax=vmax, cmap=cmap)
     # ax.plot(ref_point, "x", color="darkred" markersize=25.)
     # TODO: set correct x,y labels
-    if isinstance(ref_point, tf.Tensor):
-        ref_point = ref_point.numpy()
-    ax.set_title(f"z=[{str(ref_point[0])}, {str(ref_point[1])}]\n {k.__class__.__name__}", fontsize=23)
+    # if isinstance(ref_point, tf.Tensor):
+    #     ref_point = ref_point.numpy()
+    ref_point = np.array(tf.squeeze(ref_point))
+    ax.set_title(f"z=[{str(np.round(ref_point[0], 2))}, {str(np.round(ref_point[1], 2))}]\n {k.__class__.__name__}", fontsize=23)
