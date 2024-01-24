@@ -5,13 +5,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 from gpflow import default_float, set_trainable
+from gpflow import Parameter
 from gpflow.kernels import Matern52
 from gpflow.logdensities import multivariate_normal
 from gpflow.optimizers import Scipy
 from poli import objective_factory
 from poli.objective_repository import gfp_cbas
-from sklearn.decomposition import PCA
 from scipy.interpolate import griddata
+from sklearn.decomposition import PCA
 
 import corel
 from corel.kernel import Hellinger, WeightedHellinger
@@ -32,7 +33,7 @@ from visualization.kernel_viz import (plotkernelsample_in_Ps,
 from visualization.latent_viz import latent_space_fig
 
 
-def run_gfp_latent_visualization(seed: int=0, val_range=(-1.5,1.5), n_observation: int=10000, suffix: str=""):
+def run_gfp_latent_visualization(seed: int=0, val_range=(-1.5,1.5), n_observation: int=10000, suffix: str="", reference_point=None):
     set_seeds(seed)
     caller_info = {
         BATCH_SIZE: None,
@@ -71,8 +72,10 @@ def run_gfp_latent_visualization(seed: int=0, val_range=(-1.5,1.5), n_observatio
     labels = np.load(gfp_labels_path)
     # embedd sequences
     embedding = weighting.vae.encode(tf.one_hot(all_sequences_int, AA))
-    reference_point = weighting.vae.encode(tf.one_hot(transform_string_sequences_to_integer_arrays(np.atleast_1d(reference_seq), L, aa_int_mapping), AA))
-    title = "GFP VAE"
+    if reference_point is None: # default: use ref. sequence encoding
+        reference_point = weighting.vae.encode(tf.one_hot(transform_string_sequences_to_integer_arrays(np.atleast_1d(reference_seq), L, aa_int_mapping), AA))
+    title = "GFP VAE\n"
+    title += "(D. H. Brookes et al. 2019)"
     ## 2D VAE space
     if embedding.shape[-1] > 2:
         pca = PCA(n_components=2)
@@ -86,11 +89,13 @@ def run_gfp_latent_visualization(seed: int=0, val_range=(-1.5,1.5), n_observatio
     # VISUALIZE 2D Latent space against reference point
     fig, ax = plt.subplots(1, 3, figsize=(15, 7), sharex=True, sharey=True, squeeze=False)
     plt.subplots_adjust(bottom=0.2)
-    img1 = plotlatentspace_lvm_refpoint(Matern52(), weighting, ax=ax[0,0], xmin=val_range[0], xmax=val_range[1], ref_point=reference_point)#, vmin=0.5)
-    _ = plotlatentspace_lvm_refpoint(Hellinger(L=L, AA=AA), weighting, ax=ax[0,1], xmin=val_range[0], xmax=val_range[1], ref_point=reference_point)#, vmin=0.5)
+    img1 = plotlatentspace_lvm_refpoint(Matern52(), weighting, ax=ax[0,0], xmin=val_range[0], xmax=val_range[1], ref_point=reference_point, vmin=0.5)
+    _ = plotlatentspace_lvm_refpoint(Hellinger(L=L, AA=AA), weighting, ax=ax[0,1], xmin=val_range[0], xmax=val_range[1], ref_point=reference_point, vmin=0.5)
     # weighted hellinger kernel with
+    if not isinstance(reference_point, tf.Tensor): # convert tuple to tensor
+        reference_point = tf.cast(tf.convert_to_tensor(reference_point)[None,:], tf.float64)
     weighting_matrix = weighting.vae.decode(reference_point).reshape(L, AA) # transform to [L, AA]
-    _ = plotlatentspace_lvm_refpoint(WeightedHellinger(w=weighting_matrix, L=L, AA=AA), weighting, ax=ax[0,2], xmin=val_range[0], xmax=val_range[1], ref_point=reference_point)#, vmin=0.5)
+    _ = plotlatentspace_lvm_refpoint(WeightedHellinger(w=weighting_matrix, L=L, AA=AA), weighting, ax=ax[0,2], xmin=val_range[0], xmax=val_range[1], ref_point=reference_point, vmin=0.5)
     cbar_ax = fig.add_axes([0.15, 0.05, 0.7, 0.05])
     fig.colorbar(img1, cax=cbar_ax, orientation="horizontal")
     plt.savefig(f"/Users/rcml/corel/results/figures/kernel/latent_z_Matern52_Hellinger_{problem}{suffix}.png")
@@ -99,16 +104,15 @@ def run_gfp_latent_visualization(seed: int=0, val_range=(-1.5,1.5), n_observatio
 
 
 if __name__ == '__main__':
-    data_list = ["blat_fam", "rfp_fam",]
     model_list = ["vae", "hmm"]
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("-s", "--seed", help="Seed for distributions and random sampling of values.", type=int, default=0)
-    #parser.add_argument("--samples", help="Number of samples to compute values.", type=int, default=2000)
-    parser.add_argument("--ranges", help="Samples of latent space are in ranges (x1, x2)\in R", type=tuple, default=(-1.5, 1))
-    parser.add_argument("-m", "--model", help="Latent model factory identifier", type=str, choices=model_list, default="vae")
+    parser.add_argument("--ranges", help="Samples of latent space are in ranges (x1, x2)\in R", type=tuple, default=(-1.2, 1.2))
+    parser.add_argument("-m", "--model", help="Latent model factory identifier", type=str, choices=model_list, default="vae") # TODO: add HMM?
     parser.add_argument("--reference", help="Reference point in LVM", type=tuple, default=(0,0))
-    parser.add_argument("-d", "--dataset", help="Protein Family, for sample and LVM loading", type=str, choices=data_list, default=data_list[0])
     args = parser.parse_args()
     tf.config.run_functions_eagerly(run_eagerly=True)
 
-    run_gfp_latent_visualization(seed=args.seed, val_range=args.ranges, suffix="_GFP_reference")
+    # run_gfp_latent_visualization(seed=args.seed, val_range=args.ranges, suffix="_GFP_reference")
+    for ref_point in [(0., 0.), (-.5, 0.), (.5, 0), (0., -.5), (0, .5)]:
+        run_gfp_latent_visualization(seed=args.seed, val_range=args.ranges, suffix=f"_GFP_{str(ref_point[0])}_{str(ref_point[1])}", reference_point=ref_point)
