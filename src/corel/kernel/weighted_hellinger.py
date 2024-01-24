@@ -17,7 +17,7 @@ class WeightedHellinger(Hellinger):
             w = self.restore(w)
         self.w = w  # weighting density vector
         if lengthscale is None:
-            lengthscale = gpflow.Parameter(1.0, transform=positive(), dtype=default_float) # TODO: log transform here?
+            lengthscale = gpflow.Parameter(1.0, transform=positive(), dtype=default_float()) # TODO: log transform here?
         self.lengthscale = lengthscale  
             
     @staticmethod
