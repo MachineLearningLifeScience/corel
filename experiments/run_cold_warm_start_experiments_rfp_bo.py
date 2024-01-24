@@ -1,12 +1,9 @@
 import argparse
-import random
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 import tensorflow as tf
 from poli import objective_factory
-from poli.core.problem_setup_information import ProblemSetupInformation
 from poli.core.registry import set_observer
 from poli.core.util.external_observer import ExternalObserver
 from trieste.acquisition import (ExpectedHypervolumeImprovement,
@@ -24,6 +21,7 @@ from corel.trieste.custom_batch_acquisition_rule import \
 from corel.util.constants import (ALGORITHM, BATCH_SIZE, MODEL,
                                   PADDING_SYMBOL_INDEX, SEED, STARTING_N)
 from corel.util.util import (get_amino_acid_integer_mapping_from_info,
+                             set_seeds,
                              transform_string_sequences_to_integer_arrays)
 from corel.weightings.hmm.hmm_factory import HMMFactory
 from corel.weightings.vae.base.vae_factory import VAEFactory
@@ -50,13 +48,6 @@ AVAILABLE_SEQUENCES_N = [3, 6, 16, 50, 512]
 RFP_PROBLEM_NAMES = list(problem_model_mapping.keys())
 
 LOG_POST_PERFORMANCE_METRICS = False
-
-
-def set_seeds(seed: int) -> None:
-    random.seed(seed)
-    np.random.seed(seed)
-    tf.random.set_seed(seed)
-    return
 
 
 def get_acquisition_function_from_y(y: tf.Tensor, L: int, AA: int) -> object:

@@ -26,6 +26,7 @@ from corel.trieste.custom_batch_acquisition_rule import \
     CustomBatchEfficientGlobalOptimization
 from corel.util.constants import ALGORITHM, BATCH_SIZE, MODEL, SEED, STARTING_N
 from corel.util.util import (get_amino_acid_integer_mapping_from_info,
+                             set_seeds,
                              transform_string_sequences_to_integer_arrays)
 from corel.weightings.vae.cbas import CBASVAEWeightingFactory
 
@@ -52,14 +53,6 @@ MODEL_CLASS = {
         }
 
 LOG_POST_PERFORMANCE_METRICS = False
-
-
-def set_seeds(seed: int) -> None:
-    info(f"Setting seed={seed}")
-    random.seed(seed)
-    np.random.seed(seed)
-    tf.random.set_seed(seed)
-    return
 
 
 def standardize(y: np.ndarray) -> Tuple[np.ndarray, float, float]:
