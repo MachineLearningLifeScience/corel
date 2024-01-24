@@ -26,7 +26,7 @@ MAKE_DETERMINISTIC = True
 def train_experimental_vaes(latent_dim=20):
     """Trains and saves VAEs on the GFP data for use in the weighted ML methods"""
     TRAIN_SIZE = 5000
-    train_size_str = f"{(TRAIN_SIZE/1000)}k" 
+    train_size_str = f"{int(TRAIN_SIZE/1000)}k" 
     suffix = f"_{train_size_str}"
     if latent_dim != 20:
         suffix += f"_d{latent_dim}"
