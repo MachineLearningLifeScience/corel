@@ -1,55 +1,65 @@
 import argparse
+import logging
 import random
-from typing import Callable
+from inspect import signature
+from logging import info
+from pathlib import Path
+from typing import Tuple
+
 import numpy as np
 import tensorflow as tf
-tf.compat.v1.enable_eager_execution() # enforce eager execution context
-from pathlib import Path
-
-from trieste.data import Dataset
-from trieste.space import TaggedProductSearchSpace
-from trieste.space import Box
-from trieste.space import DiscreteSearchSpace
-from trieste.acquisition import ExpectedImprovement
-from trieste.acquisition import ExpectedHypervolumeImprovement
-from trieste.objectives.utils import mk_observer
-from trieste.objectives.utils import mk_multi_observer
-from trieste.bayesian_optimizer import BayesianOptimizer
-
 from poli import objective_factory
 from poli.core.registry import set_observer
-from poli.core.problem_setup_information import ProblemSetupInformation
-from poli.objective_repository.gfp_cbas import AA # NOTE: take problem specific alphabet from poli
+from trieste.acquisition import (ExpectedHypervolumeImprovement,
+                                 ExpectedImprovement)
+from trieste.bayesian_optimizer import BayesianOptimizer
+from trieste.data import Dataset
+from trieste.objectives.utils import mk_observer
+from trieste.space import Box, DiscreteSearchSpace, TaggedProductSearchSpace
+
+from corel.lvm_model import LVMModel
 from corel.observers.poli_base_logger import PoliBaseMlFlowObserver
-from corel.optimization.lambo_optimizer import make_lambo_optimizer
-from corel.optimization.latent_optimizer import ContinuousLatentSpaceParameterizationOptimizerFactory
+from corel.optimization.latent_optimizer import \
+    ContinuousLatentSpaceParameterizationOptimizerFactory
 from corel.protein_model import ProteinModel
-from corel.trieste.custom_batch_acquisition_rule import CustomBatchEfficientGlobalOptimization
-from corel.util.constants import ALGORITHM, BATCH_SIZE, SEED, STARTING_N, MODEL
-from corel.util.util import get_amino_acid_integer_mapping_from_info
-from corel.util.util import transform_string_sequences_to_integer_arrays
-from corel.protein_model import ProteinModel
+from corel.trieste.custom_batch_acquisition_rule import \
+    CustomBatchEfficientGlobalOptimization
+from corel.util.constants import ALGORITHM, BATCH_SIZE, MODEL, SEED, STARTING_N
+from corel.util.util import (get_amino_acid_integer_mapping_from_info,
+                             set_seeds,
+                             transform_string_sequences_to_integer_arrays)
 from corel.weightings.vae.cbas import CBASVAEWeightingFactory
 
 tf.config.run_functions_eagerly(True)
+
+logging.basicConfig(
+    format="%(asctime)s %(levelname)-8s %(message)s", 
+    level=logging.INFO, 
+    datefmt="%Y-%m-%d %H:%M:%S"
+    )
 
 TRACKING_URI = Path(__file__).parent.parent / "results" / "mlruns"
 
 
 AVAILABLE_WEIGHTINGS = [CBASVAEWeightingFactory]
 # number of available observation from cold (0.) to warm (250+) start
-AVAILABLE_SEQUENCES_N = [1, 16, 512]
+AVAILABLE_SEQUENCES_N = [3, 16, 50, 512]
 
-RFP_PROBLEM_NAMES = ["gfp_cbas_gp", "gfp_cbas_elbo"]
+PROBLEM_NAMES = ["gfp_cbas_gp", "gfp_cbas_elbo"] # TODO: ELBO evaluation currently not working!
+
+MODEL_CLASS = {
+        ProteinModel.__name__: ProteinModel, 
+        LVMModel.__name__: LVMModel
+        }
 
 LOG_POST_PERFORMANCE_METRICS = False
 
 
-def set_seeds(seed: int) -> None:
-    random.seed(seed)
-    np.random.seed(seed)
-    tf.random.set_seed(seed)
-    return
+def standardize(y: np.ndarray) -> Tuple[np.ndarray, float, float]:
+    mean = np.mean(y)
+    std = np.std(y)
+    std_y = (y - mean) / std
+    return std_y, mean, std
 
 
 def get_acquisition_function_from_y(y: tf.Tensor, L: int, AA: int) -> object:
@@ -70,7 +80,8 @@ def get_acquisition_function_from_y(y: tf.Tensor, L: int, AA: int) -> object:
     return ei
 
 
-def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_observations: int, problem: str, p_factory: object):
+def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_observations: int, problem: str, p_factory: object, model_class_key: object, strategy: str):
+    model_class = MODEL_CLASS.get(model_class_key)
     if not problem:
         raise ValueError("Specify Problem!")
     set_seeds(seed)
@@ -83,6 +94,7 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
     }
     observer = None
     observer = PoliBaseMlFlowObserver(TRACKING_URI)
+    info("Invoking objective factory create")
     problem_info, _f, _x0, _y0, run_info = objective_factory.create(
         name=problem,
         seed=seed,
@@ -91,21 +103,40 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
         observer=observer,
         force_register=True,
         parallelize=False,
+        problem_type=problem.split("_")[-1]
     )
     # subselect initial data and observations
     x0 = _x0[:batch] # corresponds to sequences for which f(x0) was computed
     y0 = _y0[:batch]
 
+    # apply standardization
+    # y0, y_mu, y_sigma = standardize(y0)
     L = problem_info.get_max_sequence_length()
     AA = len(problem_info.get_alphabet())
 
     aa_int_mapping = get_amino_acid_integer_mapping_from_info(problem_info)
     int_aa_mapping = {aa_int_mapping[a]: a for a in aa_int_mapping.keys()}
 
+    info("Load weighting distributions")
     weighting = p_factory().create(problem_info=problem_info)
-    model = ProteinModel(weighting, AA)
+    info(f"Set up model: {model_class.__name__}")
+    if "L" in signature(model_class.__init__).parameters.keys():
+        info("Querying available unlabelled data")
+        init_data = weighting.get_training_data()
+        if strategy == "sample":
+            init_data = np.random.choice(init_data, size=500, replace=False) # subsample 1% of the sequences for product kernel
+        elif strategy == "distance": 
+            # TODO: compute distance for start data to all candidates, choose closest N/3 mid N/3 and most distant N/3 sequences
+            raise NotImplementedError
+        else:
+            raise ValueError("Selecting unlabelled sequences for product kernel failed!\nPick strategy {sample , distance}")
+        init_data_int = transform_string_sequences_to_integer_arrays(init_data, L, aa_int_mapping)
+        model = model_class(weighting, AA=AA, L=L, unlabelled_data=init_data_int)
+    else:
+        model = model_class(weighting, AA)
 
     def f_wrapper(x, f=_f, aa_mapping: dict=int_aa_mapping, model=model, context=None, problem=problem):
+        info("Querying black-box")
         _x = x.numpy()
         # convert int tensor to AA strings
         sequences = np.array([
@@ -117,7 +148,9 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
             context = model.get_context()
         seqs = np.array([list(_s) for _s in sequences])
         f_batch = f(seqs, context) # batched calls
-        return tf.constant(f_batch)
+        # f_val = (f_batch - y_mu) / y_sigma # standardize observations
+        f_val = f_batch
+        return tf.constant(f_val)
 
     X_train = transform_string_sequences_to_integer_arrays(x0, L, aa_int_mapping)
     aa_space = DiscreteSearchSpace(tf.expand_dims(tf.range(AA), axis=-1))
@@ -127,29 +160,33 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
     dataset_t0 = Dataset(query_points=tf.constant(X_train), observations=tf.constant(y0))
     ei = get_acquisition_function_from_y(y0, L=L, AA=AA)
     optimizer_factory = ContinuousLatentSpaceParameterizationOptimizerFactory(problem_info=problem_info, batch_size=batch)
+    info("Setup batched EGO")
     rule = CustomBatchEfficientGlobalOptimization(
             optimizer=optimizer_factory.create(),
             builder=ei,
             num_query_points=batch)
     bo = BayesianOptimizer(tr_observer, search_space)
-    # TODO: can't use vanilla lambo optimizer here, since padding and padding related asserts break optimization routine.
+    info("Running trieste BO optimize routine")
     result = bo.optimize(num_steps=budget, datasets=dataset_t0, models=model, acquisition_rule=rule)
     if observer is not None:
+        info("Terminating observer")
         observer.finish()
     return result
 
 
 if __name__ == "__main__":
-    # NOTE: this is currently the RFP experiment, other experiments require other experiment run scripts
     parser = argparse.ArgumentParser(description="Experiment Specifications Cold to Warm-Start")
     parser.add_argument("-s", "--seed", type=int, default=0, help="Random seed for experiments.")
     parser.add_argument("-m", "--max_evaluations", type=int, default=100, help="Optimization budget, number of possible observations.")
-    parser.add_argument("-p", "--problem", type=str, choices=RFP_PROBLEM_NAMES, default=RFP_PROBLEM_NAMES[0], help="Problem description as string key.")
-    parser.add_argument("-b", "--batch", type=int, default=1)
+    parser.add_argument("-p", "--problem", type=str, choices=PROBLEM_NAMES, default=PROBLEM_NAMES[0], help="Problem description as string key.")
+    parser.add_argument("-b", "--batch", type=int, default=10)
     parser.add_argument("-n", "--number_observations", type=int, choices=AVAILABLE_SEQUENCES_N, default=AVAILABLE_SEQUENCES_N[-1])
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-w", "--weighting", type=str, choices=AVAILABLE_WEIGHTINGS, default=AVAILABLE_WEIGHTINGS[0])
+    parser.add_argument("--model", type=str, choices=MODEL_CLASS.keys(), default=LVMModel.__name__)
+    parser.add_argument("--strategy", type=str, choices=["sample", "distance"], default="sample")
     args = parser.parse_args()
+    info(f"Running GFP experiment: {args.problem}\n Model: {args.model} weighting: {args.weighting}\nbudget={args.max_evaluations} batch_size={args.batch} seed={args.seed}")
     result = cold_start_gfp_experiment(
         problem=args.problem, 
         seed=args.seed, 
@@ -157,6 +194,8 @@ if __name__ == "__main__":
         batch=args.batch, 
         n_allowed_observations=args.number_observations,
         p_factory=args.weighting,
+        model_class_key=args.model,
+        strategy=args.strategy,
     )
     if args.verbose:
-        print(f"Optimal result: {result}")
+        info(f"Optimal result: {result}")

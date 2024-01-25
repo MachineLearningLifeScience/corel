@@ -1,23 +1,30 @@
 import numpy as np
+import tensorflow as tf
 from tensorflow.python.keras import backend as K
 """
 This module contains a number of custom Keras loss functions
 """
 
 
+@tf.keras.utils.register_keras_serializable(package="corel")
 def zero_loss(y_true, y_pred):
     """Returns zero"""
     return K.zeros_like(y_true)
 
+
+@tf.keras.utils.register_keras_serializable(package="corel")
 def identity_loss(y_true, y_pred):
     """Returns the predictions"""
     return y_pred
 
+
+@tf.keras.utils.register_keras_serializable(package="corel")
 def summed_binary_crossentropy(y_true, y_pred):
     """ Negative log likehood of binomial distribution """
     return K.sum(K.binary_crossentropy(y_true, y_pred), axis=-1)  # default is mean over last axis
 
 
+@tf.keras.utils.register_keras_serializable(package="corel")
 def summed_categorical_crossentropy(y_true, y_pred):
     """ Negative log likelihood of categorical distribution """
     return K.sum(K.categorical_crossentropy(y_true, y_pred), axis=-1)

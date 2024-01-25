@@ -1,37 +1,30 @@
 import argparse
-import random
-from typing import Callable
-import numpy as np
-import tensorflow as tf
 from pathlib import Path
 
-from trieste.data import Dataset
-from trieste.space import TaggedProductSearchSpace
-from trieste.space import Box
-from trieste.space import DiscreteSearchSpace
-from trieste.acquisition import ExpectedImprovement
-from trieste.acquisition import ExpectedHypervolumeImprovement
-from trieste.objectives.utils import mk_observer
-from trieste.objectives.utils import mk_multi_observer
-from trieste.bayesian_optimizer import BayesianOptimizer
-
+import numpy as np
+import tensorflow as tf
 from poli import objective_factory
 from poli.core.registry import set_observer
-from poli.core.problem_setup_information import ProblemSetupInformation
 from poli.core.util.external_observer import ExternalObserver
+from trieste.acquisition import (ExpectedHypervolumeImprovement,
+                                 ExpectedImprovement)
+from trieste.bayesian_optimizer import BayesianOptimizer
+from trieste.data import Dataset
+from trieste.objectives.utils import mk_multi_observer, mk_observer
+from trieste.space import Box, DiscreteSearchSpace, TaggedProductSearchSpace
+
 from corel.observers.poli_base_logger import PoliBaseMlFlowObserver
 from corel.optimization.lambo_optimizer import make_lambo_optimizer
 from corel.protein_model import ProteinModel
-
-from corel.util.constants import ALGORITHM, BATCH_SIZE, PADDING_SYMBOL_INDEX, SEED, STARTING_N, MODEL
-from corel.trieste.custom_batch_acquisition_rule import CustomBatchEfficientGlobalOptimization
-from corel.util.util import get_amino_acid_integer_mapping_from_info
-from corel.util.util import transform_string_sequences_to_integer_arrays
-from corel.protein_model import ProteinModel
+from corel.trieste.custom_batch_acquisition_rule import \
+    CustomBatchEfficientGlobalOptimization
+from corel.util.constants import (ALGORITHM, BATCH_SIZE, MODEL,
+                                  PADDING_SYMBOL_INDEX, SEED, STARTING_N)
+from corel.util.util import (get_amino_acid_integer_mapping_from_info,
+                             set_seeds,
+                             transform_string_sequences_to_integer_arrays)
 from corel.weightings.hmm.hmm_factory import HMMFactory
 from corel.weightings.vae.base.vae_factory import VAEFactory
-# from corel.observers.poli_lambo_logger import PoliLamboLogger
-# from corel.observers.poli_base_logger import PoliBaseMlFlowObserver
 
 COREL_DIR = Path(__file__).parent.parent.resolve()
 
@@ -40,7 +33,7 @@ problem_model_mapping = {
         "hmm": f"{str(COREL_DIR)}/experiments/assets/hmms/rfp.hmm",
         # "vae": "./results/models/vae_z_2_rfp_fam.ckpt"
         },
-    "foldx_stability_and_sasa":{
+    "rfp_foldx_stability_and_sasa":{ # TODO: make rfp_foldx_stability_and_sasa after poli
         "hmm": f"{str(COREL_DIR)}/experiments/assets/hmms/rfp.hmm"
     }
 }
@@ -48,19 +41,13 @@ problem_model_mapping = {
 TRACKING_URI = f"file:{str(COREL_DIR)}/results/mlruns/"
 
 AVAILABLE_WEIGHTINGS = [HMMFactory, VAEFactory]
-# number of available observation from cold (0.) to warm (250+) start
-AVAILABLE_SEQUENCES_N = [3, 16, 50, 512]
+# number of available observation from cold (3) to warm (250+) start
+AVAILABLE_SEQUENCES_N = [3, 6, 16, 50, 512]
+# Pareto Front is size is 6 , additional sequences added at random, 512 is complete number of sequences
 
 RFP_PROBLEM_NAMES = list(problem_model_mapping.keys())
 
 LOG_POST_PERFORMANCE_METRICS = False
-
-
-def set_seeds(seed: int) -> None:
-    random.seed(seed)
-    np.random.seed(seed)
-    tf.random.set_seed(seed)
-    return
 
 
 def get_acquisition_function_from_y(y: tf.Tensor, L: int, AA: int) -> object:
@@ -104,7 +91,7 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
             force_register=True,
             parallelize=False, # NOTE: current setup DO NOT allow parallelization
         )
-    elif problem == 'foldx_stability_and_sasa':
+    elif problem == 'rfp_foldx_stability_and_sasa':
         if not data_path:
             raise ValueError("Please provide location of PDB files!")
         assets_pdb_paths = list(Path(data_path).glob("*/wt_input_Repair.pdb"))
@@ -123,13 +110,14 @@ def cold_start_experiment(seed: int, budget: int, batch: int, n_allowed_observat
             force_register=True,
             parallelize=True,
             num_workers=4,
-            batch_size=batch, # TODO: mutliple elements should be supported here!
+            batch_size=batch,
+            n_starting_points=n_allowed_observations,
         )
     else:
         raise NotImplementedError
     # subselect initial data and observations
-    _x0 = _x0[:n_allowed_observations] 
-    y0 = _y0[:n_allowed_observations]
+    _x0 = _x0
+    y0 = _y0
 
     L = problem_info.get_max_sequence_length()
     if L == np.inf:

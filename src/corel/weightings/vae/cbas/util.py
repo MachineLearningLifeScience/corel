@@ -1,8 +1,9 @@
 import os.path
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
+from poli.objective_repository import gfp_cbas
 
 AA = ['a', 'r', 'n', 'd', 'c', 'q', 'e', 'g', 'h', 'i', 'l', 'k', 'm', 'f', 'p', 's', 't', 'w', 'y', 'v']
 AA_IDX = {AA[i]:i for i in range(len(AA))}
@@ -45,7 +46,7 @@ def read_gfp_data(path=None, df_save_file=None):
     if path is None:
         path = "../data/nucleotide_genotypes_to_brightness.tsv"
     f = open(path)
-    base_seq = get_base_seq()
+    base_seq = get_gfp_base_seq()
     mod = list(base_seq)
     mod[191] = 'A'
     base_seq = "".join(mod)
@@ -211,10 +212,10 @@ def get_experimental_X_y(random_state=1, train_size=5000, return_test=False, ret
     """For the GFP testing experiments. Loads the ground truth data (i.e. predictions from the GP model
     we use as the ground truth), partitions it such that we only observe values below the 20th percentile
     and adds measurement noise"""
-    prefix = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ref")
-    df = pd.read_csv(prefix + '/data/gfp_data.csv')
+    assets_path = Path(gfp_cbas.__file__).parent.resolve() / "assets"
+    df = pd.read_csv(str(assets_path) + '/gfp_data.csv')
     X,_ = get_gfp_X_y_aa(df, large_only=True, ignore_stops=True)
-    y_gt = np.load(prefix + "/data/gfp_gt_evals.npy")
+    y_gt = np.load(str(assets_path) + "/gfp_gt_evals.npy")
     if return_test:
         X_train, gt_train, X_test, gt_test = partition_data(X, y_gt, percentile=20, train_size=train_size, random_state=random_state, return_test=return_test)
         np.random.seed(random_state)

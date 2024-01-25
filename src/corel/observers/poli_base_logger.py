@@ -10,26 +10,25 @@ To check its results, you will need to start a ui:
 
     mlflow ui --backend-store-uri ./mlruns
 """
-
-from pathlib import Path
 import logging
+from pathlib import Path
 from typing import Tuple
+
 import mlflow
 import numpy as np
 import torch
-from botorch.utils.multi_objective import infer_reference_point, Hypervolume, is_non_dominated
-
+from botorch.utils.multi_objective import (Hypervolume, infer_reference_point,
+                                           is_non_dominated)
 from poli.core.problem_setup_information import ProblemSetupInformation
 from poli.core.registry import set_observer
 from poli.core.util.abstract_observer import AbstractObserver
 
 import corel
-from corel.observers import HD_PREV, HD_WT, HD_MIN, SEQUENCE, BLACKBOX, MIN_BLACKBOX, ABS_HYPER_VOLUME, REL_HYPER_VOLUME
-from corel.observers.logger import log, initialize_logger, finish, log_sequence
-
+from corel.observers import (ABS_HYPER_VOLUME, BLACKBOX, HD_MIN, HD_PREV,
+                             HD_WT, MIN_BLACKBOX, REL_HYPER_VOLUME, SEQUENCE)
 # NOTE: this here is a very particular Normalizer (presented in the LamBO work)
 from corel.observers.lambo_imports.normalizer import Normalizer
-
+from corel.observers.logger import finish, initialize_logger, log, log_sequence
 
 STARTING_N = "n_D0"
 ALGORITHM = "ALGORITHM"
@@ -111,7 +110,7 @@ class PoliBaseMlFlowObserver(AbstractObserver):
     def observe(self, x: np.ndarray, y: np.ndarray, context=None) -> None:
         if context is not None: # log model parameters if context is given
             for key, value in context.items():
-                if isinstance(value, list) or isinstance(value, np.array):
+                if isinstance(value, list) or isinstance(value, np.ndarray):
                     if len(np.atleast_1d(value[0])) > 1: # if metric is a vector/matrix, add all to artifacts
                         self.__add_to_additional_metrics(key, value)
                         continue

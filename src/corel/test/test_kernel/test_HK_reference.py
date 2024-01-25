@@ -1,14 +1,16 @@
-from typing import Callable
-import pytest
 import inspect
+from typing import Callable
+
 import numpy as np
-from corel.kernel.hellinger import get_mean_and_amplitude
-from corel.kernel.hellinger import _hellinger_distance
-from corel.kernel.hellinger import _k
-from corel.kernel import HellingerReference
-from corel.kernel import Hellinger
-from corel.kernel import WeightedHellinger
+import pytest
 import tensorflow as tf
+from gpflow import default_float
+from gpflow.utilities import to_default_float
+
+from corel.kernel import Hellinger, HellingerReference, WeightedHellinger
+from corel.kernel.hellinger import (_hellinger_distance, _k,
+                                    get_mean_and_amplitude)
+
 #import matplotlib.pyplot as plt
 
 # define test sequences and test alphabet and test weighting distributions
@@ -209,8 +211,8 @@ def test_kernel_implementation_naive(x,y):
     naive_k_matrix = naive_kernel(x, y, theta=theta, lam=lam)
     hk = Hellinger(L=L, AA=AA, lengthscale=lam)
     # reshape for GPflow compatability
-    x = tf.reshape(x, shape=(1, x.shape[0], x.shape[1]*x.shape[-1])) # GPflow inputs: [B, N, D] s.t. D=LxAA
-    y = tf.reshape(y, shape=(1, y.shape[0], y.shape[1]*y.shape[-1]))
+    x = tf.reshape(x, shape=(x.shape[0], x.shape[1]*x.shape[-1])) # GPflow inputs: [B, N, D] s.t. D=LxAA
+    y = tf.reshape(y, shape=(y.shape[0], y.shape[1]*y.shape[-1]))
     hk_matrix = tf.reshape(hk.K(x, y), shape=naive_k_matrix.shape).numpy()
     np.testing.assert_allclose(hk_matrix, naive_k_matrix, rtol=1e-6)
 
@@ -220,12 +222,14 @@ def test_kernel_implementation_naive(x,y):
                                 (simulated_decoding_distributions, single_decoding_point_dist)])
 def test_weighted_kernel_implementation_naive(x,y):
     theta = 1.
-    lam = 1.
+    lam = tf.convert_to_tensor(1., dtype=tf.float64)
     naive_whk_matrix = naive_weighted_kernel(x, y, simulated_weighting_vec, 
             lam=lam, theta=theta)
-    whk = WeightedHellinger(w=tf.convert_to_tensor(simulated_weighting_vec), L=L, AA=AA, lengthscale=lam)
-    x = tf.reshape(x, shape=(1, x.shape[0], x.shape[1]*x.shape[-1])) # GPflow inputs: [B, N, D] s.t. D=LxAA
-    y = tf.reshape(y, shape=(1, y.shape[0], y.shape[1]*y.shape[-1]))
+    x = tf.convert_to_tensor(x, dtype=tf.float64)
+    y = tf.convert_to_tensor(y, dtype=tf.float64)
+    whk = WeightedHellinger(w=tf.convert_to_tensor(simulated_weighting_vec, dtype=tf.float64), L=L, AA=AA, lengthscale=lam)
+    x = tf.reshape(x, shape=(x.shape[0], x.shape[1]*x.shape[-1])) # GPflow inputs: [B, N, D] s.t. D=LxAA
+    y = tf.reshape(y, shape=(y.shape[0], y.shape[1]*y.shape[-1]))
     whk_matrix = whk.K(x, y)
     whk_matrix = tf.reshape(whk_matrix, shape=naive_whk_matrix.shape)   
     np.testing.assert_allclose(naive_whk_matrix, whk_matrix, rtol=1e-6)
@@ -235,29 +239,29 @@ def test_weighted_kernel_implementation_naive(x,y):
 def test_HK_output_handling(x,y):
     lam = 1.
     hk = Hellinger(L=L, AA=AA, lengthscale=lam)
-    x = tf.reshape(x, shape=(1, x.shape[0], x.shape[1]*x.shape[-1])) # GPflow inputs: [B, N, D] s.t. D=LxAA
+    x = tf.reshape(x, shape=(x.shape[0], x.shape[1]*x.shape[-1])) # GPflow inputs: [B, N, D] s.t. D=LxAA
     if y is not None:
-        y = tf.reshape(y, shape=(1, y.shape[0], y.shape[1]*y.shape[-1]))
+        y = tf.reshape(y, shape=(y.shape[0], y.shape[1]*y.shape[-1]))
     hk_matrix = hk.K(x, y).numpy()
     if y is None:
-        assert hk_matrix.shape == (1, x.shape[1], x.shape[1])
+        assert hk_matrix.shape == (x.shape[0], x.shape[0])
     else:
-        assert hk_matrix.shape == (1, x.shape[1], 1, y.shape[1])
+        assert hk_matrix.shape == (x.shape[0], y.shape[0])
 
 
 
 @pytest.mark.parametrize("x,y", [(simulated_decoding_distributions, None), (simulated_decoding_distributions, simulated_decoding_distributions_Y), (simulated_decoding_distributions, single_decoding_point_dist)])
 def test_weighted_HK_output_handling(x,y):
-    lam = 1.
+    lam = tf.convert_to_tensor(1., dtype=tf.float64)
     whk = WeightedHellinger(w=tf.convert_to_tensor(simulated_weighting_vec), L=L, AA=AA, lengthscale=lam)
-    x = tf.reshape(x, shape=(1, x.shape[0], x.shape[1]*x.shape[-1])) # GPflow inputs: [B, N, D] s.t. D=LxAA
+    x = tf.reshape(x, shape=(x.shape[0], x.shape[1]*x.shape[-1])) # GPflow inputs: [B, N, D] s.t. D=LxAA
     if y is not None:
-        y = tf.reshape(y, shape=(1, y.shape[0], y.shape[1]*y.shape[-1]))
+        y = tf.reshape(y, shape=(y.shape[0], y.shape[1]*y.shape[-1]))
     hk_matrix = whk.K(x, y).numpy()
     if y is None:
-        assert hk_matrix.shape == (1, x.shape[1], x.shape[1])
+        assert hk_matrix.shape == (x.shape[0], x.shape[0])
     else:
-        assert hk_matrix.shape == (1, x.shape[1], 1, y.shape[1])
+        assert hk_matrix.shape == (1, x.shape[0], 1, y.shape[0])
 
 
 # def test_kernel_functions_k():
@@ -272,7 +276,8 @@ def test_weighted_HK_output_handling(x,y):
 
 
 if __name__ == "__main__": # NOTE: added for the debugger to work!
-    test_inner_product_implementation_naive(x=simulated_decoding_distributions, y=simulated_decoding_distributions_Y)
+    pass
+    # test_inner_product_implementation_naive(x=simulated_decoding_distributions, y=simulated_decoding_distributions_Y)
     # test_kernel_implementation_naive(x=simulated_decoding_distributions, y=simulated_decoding_distributions)
     # test_kernel_implementation_naive(x=simulated_decoding_distributions, y=simulated_decoding_distributions_Y)
     # test_kernel_implementation_naive(x=simulated_decoding_distributions, y=single_decoding_point_dist)
@@ -282,5 +287,5 @@ if __name__ == "__main__": # NOTE: added for the debugger to work!
     # test_weighted_HK_output_handling(x=simulated_decoding_distributions, y=single_decoding_point_dist)
     # test_kernel_implementation_naive(x=simulated_decoding_distributions, y=single_decoding_point_dist)
     # test_weighted_kernel_implementation_naive(x=simulated_decoding_distributions, y=simulated_decoding_distributions)
-    test_weighted_kernel_implementation_naive(x=simulated_decoding_distributions, y=simulated_decoding_distributions_Y) #TODO
+    # test_weighted_kernel_implementation_naive(x=simulated_decoding_distributions, y=simulated_decoding_distributions_Y) #TODO
     # test_weighted_kernel_implementation_naive(x=simulated_decoding_distributions, y=single_decoding_point_dist)
