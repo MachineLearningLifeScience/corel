@@ -127,19 +127,42 @@ def instantiate_black_box(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Experiment specifications for running NSGA-II.")
-    parser.add_argument("-s", "--seed", type=int, default=0, help="Random seed for experiments.")
-    parser.add_argument("-m", "--max_evaluations", type=int, default=100, help="Optimization budget, number of possible observations.")
-    parser.add_argument("-p", "--problem", type=str, choices=["foldx_rfp_lambo", "foldx_stability_and_sasa"], default="foldx_rfp_lambo", help="Problem description as string key.")
+    parser = argparse.ArgumentParser(
+        description="Experiment specifications for running NSGA-II."
+    )
+    parser.add_argument(
+        "-s", "--seed", type=int, default=0, help="Random seed for experiments."
+    )
+    parser.add_argument(
+        "-m",
+        "--max_evaluations",
+        type=int,
+        default=100,
+        help="Optimization budget, number of possible observations.",
+    )
+    parser.add_argument(
+        "-p",
+        "--problem",
+        type=str,
+        choices=["foldx_rfp_lambo", "foldx_stability_and_sasa"],
+        default="foldx_rfp_lambo",
+        help="Problem description as string key.",
+    )
     parser.add_argument("-b", "--batch", type=int, default=None)
-    parser.add_argument("-n", "--number_observations", type=int, choices=AVAILABLE_SEQUENCES_N, default=AVAILABLE_SEQUENCES_N[-1])
+    parser.add_argument(
+        "-n",
+        "--number_observations",
+        type=int,
+        choices=AVAILABLE_SEQUENCES_N,
+        default=AVAILABLE_SEQUENCES_N[-1],
+    )
     args = parser.parse_args()
 
     problem_name = args.problem
     batch = args.batch
     seed = args.seed
     n_allowed_observations = args.number_observations
-    
+
     # Adding some hardcoded values for NSGA-II
     population_size = 10
     n_iterations = 10
@@ -168,4 +191,15 @@ if __name__ == "__main__":
         num_mutations=n_mutations,
     )
 
-    baseline.solve(max_iter=n_iterations, verbose=True)
+    saving_path = (
+        PROJECT_ROOT_DIR
+        / "results"
+        / "baselines"
+        / f"{problem_name}_n_{n_allowed_observations}_seed_{seed} / history.json"
+    )
+    saving_path.parent.mkdir(parents=True, exist_ok=True)
+    baseline.solve(
+        max_iter=n_iterations,
+        verbose=True,
+        post_step_callbacks=[lambda solver: solver.save_history(saving_path)],
+    )
