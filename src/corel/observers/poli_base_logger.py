@@ -25,7 +25,8 @@ from poli.core.util.abstract_observer import AbstractObserver
 
 import corel
 from corel.observers import (ABS_HYPER_VOLUME, BLACKBOX, HD_MIN, HD_PREV,
-                             HD_WT, MIN_BLACKBOX, REL_HYPER_VOLUME, SEQUENCE)
+                             HD_WT, MIN_BLACKBOX, REL_HYPER_VOLUME, SEQUENCE,
+                             UNNORMALIZED_HV)
 # NOTE: this here is a very particular Normalizer (presented in the LamBO work)
 from corel.observers.lambo_imports.normalizer import Normalizer
 from corel.observers.logger import finish, initialize_logger, log, log_sequence
@@ -128,7 +129,9 @@ class PoliBaseMlFlowObserver(AbstractObserver):
         log({f"{MIN_BLACKBOX}_{i}": float(mins[:,i]) for i in range(y.shape[1])}, step=self.step)
         if self.transformed_pareto_volume_ref_point is not None and y.shape[1] > 1:
             new_volume = self._compute_hyper_volume(ymat)
+            new_volume_unnormalized = self._compute_hyper_volume_no_transform(ymat)
             log({ABS_HYPER_VOLUME: new_volume, 
+                UNNORMALIZED_HV: new_volume_unnormalized,
                 REL_HYPER_VOLUME: new_volume / self.initial_pareto_front_volume},
                 step=self.step)
         self.step += 1
@@ -144,8 +147,24 @@ class PoliBaseMlFlowObserver(AbstractObserver):
             transformed_pareto_volume_ref_point, self.transform = get_pareto_reference_point(y0)
             self.transformed_pareto_volume_ref_point = torch.Tensor(transformed_pareto_volume_ref_point)
             self.initial_pareto_front_volume = self._compute_hyper_volume(y0)
-            log({ABS_HYPER_VOLUME: self.initial_pareto_front_volume}, step=self.step)
-        
+            new_volume_unnormalized = self._compute_hyper_volume_no_transform(y0)
+            log({ABS_HYPER_VOLUME: self.initial_pareto_front_volume,
+                UNNORMALIZED_HV: new_volume_unnormalized,
+            }, step=self.step)
+
+    def _compute_hyper_volume_no_transform(self, all_y: np.ndarray) -> float:
+        """
+        Compute Hypervolume as a maximization problem WIHOUT TRANSFORM.
+        Take pareto V reference point, compute w.r.t. pareto targets.
+        NOTE: Reference BoTorch implementation (LaMBO) used.
+        NOTE: y observations are not negated for normalized pareto targets.
+        """
+        tymat = torch.Tensor(all_y)
+        idx = is_non_dominated(-tymat).numpy()
+        pareto_targets = all_y[idx, ...]
+        # this implementation of volume computation assumes maximization
+        return Hypervolume(-torch.Tensor([0., 0.])).compute(torch.tensor(-pareto_targets))
+
     def _compute_hyper_volume(self, all_y: np.ndarray) -> float:
         """
         Compute Hypervolume as a maximization problem.
