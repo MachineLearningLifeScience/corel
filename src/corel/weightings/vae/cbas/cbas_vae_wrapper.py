@@ -52,5 +52,20 @@ class CBASVAEWrapper:
         for s in train_sequences:  # obtain unique sequences
             if s not in train_sequences_unique:
                 train_sequences_unique.append(s)
-        train_sequences_unique = [s for s in train_sequences_unique if len(s) == self.L] # filter to aligned length of unlabelled sequences
+        # train_sequences_unique = [s for s in train_sequences_unique if len(s) == self.L] # filter to aligned length of unlabelled sequences
         return train_sequences_unique
+
+    def get_training_labels(self) -> np.ndarray:
+        if not self.training_data.exists():
+            raise ValueError("The specified path does not contain GFP training data!")
+        train_data = np.genfromtxt(str(self.training_data), delimiter=",", skip_header=1, 
+                            dtype=[int, int, int, 'U500', int, int, int, float, float, 'U500'])
+        train_sequences = [x[-1] for x in train_data]
+        train_labels = [x[-3] for x in train_data]
+        train_sequences_unique = []
+        train_labels_unique = []
+        for s, l in zip(train_sequences, train_labels):
+            if s not in train_sequences_unique: # unique values only
+                train_sequences_unique.append(s)
+                train_labels_unique.append(l)
+        return train_labels_unique

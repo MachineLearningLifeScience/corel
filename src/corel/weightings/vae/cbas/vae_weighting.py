@@ -31,4 +31,10 @@ class VAEWeighting(AbstractWeighting):
             return self.vae.get_training_data()
         else:
             raise NotImplementedError("Training data loading only implemented for CBas weighting!")
+    
+    def get_training_labels(self):
+        if "cbas" in self.vae.__class__.__name__.lower():
+            return self.vae.get_training_labels()
+        else:
+            raise NotImplementedError("Training data loading only implemented for CBas weighting!")
 
