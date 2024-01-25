@@ -8,7 +8,8 @@ from gpflow import default_float
 from trieste.acquisition.multi_objective import non_dominated
 from trieste.space import SearchSpaceType
 
-from corel.optimization.pareto_frontier_explorer import _padded_until, _seq_to_atom
+from corel.optimization.pareto_frontier_explorer import (_padded_until,
+                                                         _seq_to_atom)
 from corel.util.constants import PADDING_SYMBOL_INDEX
 from corel.util.k_best import KeepKBest
 
@@ -17,7 +18,7 @@ This optimization algorithm imitates LamBO. We just explore all single site muta
 """
 
 
-def mutate_candidate(seq, acquisition_function, copy=lambda x: x.copy(), trials=1):
+def mutate_candidate(seq, acquisition_function, copy=lambda x: x.copy(), trials=16):
     AA = acquisition_function._model.AA  # get from ac
     bestk = KeepKBest(1, copy=copy)
     positions = np.random.randint(0, _padded_until(seq), trials)
