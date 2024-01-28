@@ -35,3 +35,11 @@ ArrayID Seed BatchSize Problem AssetDirectory StartingN NumIterations
 33 23 16 foldx_rfp_lambo /home/pcq275/lambo/lambo/assets/foldx/ 512 32
 34 42 16 foldx_rfp_lambo /home/pcq275/lambo/lambo/assets/foldx/ 512 32
 35 71 16 foldx_rfp_lambo /home/pcq275/lambo/lambo/assets/foldx/ 512 32
+36 29 16 rfp_foldx_stability_and_sasa /home/pcq275/lambo/lambo/assets/foldx/ 50 32
+37 37 16 rfp_foldx_stability_and_sasa /home/pcq275/lambo/lambo/assets/foldx/ 50 32
+38 73 16 rfp_foldx_stability_and_sasa /home/pcq275/lambo/lambo/assets/foldx/ 50 32
+39 29 6 rfp_foldx_stability_and_sasa /home/pcq275/lambo/lambo/assets/foldx/ 6 32
+40 37 6 rfp_foldx_stability_and_sasa /home/pcq275/lambo/lambo/assets/foldx/ 6 32
+41 73 6 rfp_foldx_stability_and_sasa /home/pcq275/lambo/lambo/assets/foldx/ 6 32
+42 29 16 foldx_rfp_lambo /home/pcq275/lambo/lambo/assets/foldx/ 512 32
+43 37 16 foldx_rfp_lambo /home/pcq275/lambo/lambo/assets/foldx/ 512 32
