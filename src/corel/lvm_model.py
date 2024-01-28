@@ -145,7 +145,7 @@ class LVMModel(TrainableProbabilisticModel):
         X, Y = self.model.data
         x = tf.reshape(x, shape=(x.shape[0], int(self.len*self.aa)))
         K_Xx = self.model.kernel(X[tf.newaxis,...], x[tf.newaxis,...]).reshape(X.shape[0], x.shape[0]) # drop batch dimensions at index [0, 2]
-        L_x_solve = tf.transpose(tf.linalg.triangular_solve(self.L, tf.transpose(K_Xx), lower=True))
+        L_x_solve = tf.transpose(tf.linalg.triangular_solve(self.L, K_Xx, lower=True))
         # TODO: test predictive posterior computation
         pred_mean = L_x_solve @ self.alphas + self.kern_mean
         pred_var = self.kern_amplitude * (tf.ones((x.shape[0], 1), dtype=default_float()) - tf.expand_dims(tf.reduce_sum(tf.square(L_x_solve), axis=-1), axis=1))
