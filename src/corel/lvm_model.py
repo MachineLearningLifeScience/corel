@@ -1,4 +1,4 @@
-__author__ = "RM"
+__author__ = "RM, SB"
 
 import logging
 from copy import deepcopy
@@ -8,6 +8,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 from gpflow import Parameter, default_float
 from gpflow.kernels import Product
 from gpflow.logdensities import multivariate_normal
@@ -49,6 +50,8 @@ class LVMModel(TrainableProbabilisticModel):
         self.variance = None
         self.lengthscale = None
         self.noise = None
+        # regularizing prior for [0,1] range discounting larger noise values but not prohibiting them
+        self.noise_prior = tfp.distributions.InverseGamma(concentration=3., scale=0.75, name="noise_prior"), 
         self._optimized = False
         self.model = None
         self._kernel = None
@@ -87,8 +90,7 @@ class LVMModel(TrainableProbabilisticModel):
         # compute sequence likelihoods
         weighting_matrix, expectations = self._compute_weight_matrix_and_expectation_from_reference_sequences()
         init_len = max(np.sqrt(np.median(expectations)), np.exp(-350))
-        lengthscale = Parameter(init_len, transform=positive(), name="lengthscale")
-        self.lengthscale = lengthscale
+        self.lengthscale = Parameter(init_len, transform=positive(lower=np.exp(-350)), name="lengthscale")
         for _p in weighting_matrix:
             assert _p.shape[0] == self.len and _p.shape[1] == self.aa
             kernels.append(WeightedHellinger(w=_p, AA=self.aa, L=self.len, lengthscale=self.lengthscale))
@@ -96,7 +98,8 @@ class LVMModel(TrainableProbabilisticModel):
         self._kernel = Product(kernels=kernels, name="product_whk")
         oh_sequences = to_default_float(tf.reshape(tf.one_hot(self.X, self.aa), shape=(self.X.shape[0], int(self.len*self.aa))))
         model = GPR((oh_sequences, self.y), kernel=self._kernel)
-        self.noise = Parameter(init_data_var, transform=positive(), name="noise")
+        self.noise = Parameter(init_data_var, transform=positive(lower=np.exp(-350)), prior=self.noise_prior,
+                             name="noise")
         model.likelihood.variance = self.noise
         return model
 
@@ -141,13 +144,11 @@ class LVMModel(TrainableProbabilisticModel):
         # manually compute posterior predictive
         X, Y = self.model.data
         x = tf.reshape(x, shape=(x.shape[0], int(self.len*self.aa)))
-        prior_mean, prior_amp = get_mean_and_amplitude(L=self.L, Y=Y)
-        alphas = tf.linalg.triangular_solve(self.L, Y-prior_mean, lower=True)
         K_Xx = self.model.kernel(X[tf.newaxis,...], x[tf.newaxis,...]).reshape(X.shape[0], x.shape[0]) # drop batch dimensions at index [0, 2]
-        L_x_solve = tf.transpose(tf.linalg.triangular_solve(self.L, K_Xx, lower=True))
+        L_x_solve = tf.transpose(tf.linalg.triangular_solve(self.L, tf.transpose(K_Xx), lower=True))
         # TODO: test predictive posterior computation
-        pred_mean = L_x_solve @ alphas + prior_mean
-        pred_var = prior_amp * tf.ones((x.shape[0], 1), dtype=tf.float64) - tf.expand_dims(tf.reduce_sum(tf.square(L_x_solve), axis=-1), axis=1)
+        pred_mean = L_x_solve @ self.alphas + self.kern_mean
+        pred_var = self.kern_amplitude * (tf.ones((x.shape[0], 1), dtype=default_float()) - tf.expand_dims(tf.reduce_sum(tf.square(L_x_solve), axis=-1), axis=1))
         return pred_mean, pred_var
 
     def predict(self, query_points: TensorType) -> Tuple[TensorType, TensorType]:
@@ -202,19 +203,17 @@ class LVMModel(TrainableProbabilisticModel):
         # NOTE: below becomes a redundant check with replaced NaNs we ask for self.X==self.X
         X, Y = self.model.data
         opt = Scipy()
-        opt.minimize(_opt_closure(), 
-                    self.model.trainable_variables, 
-                    bounds=[(np.exp(-350), None), # constraint length_scale, prohibit values close to or equal zero
-                        (0, 1)], # constrain noise to zero-one range
+        results = opt.minimize(_opt_closure(), 
+                    self.model.trainable_variables,
                     )
-        self.L = tf.linalg.cholesky(self.model.kernel(X))
-        _len, _var = self.model.trainable_parameters
-        self.noise = _var
-        self.log_lengthscale = tf.math.log(_len)
+        self.L = tf.linalg.cholesky(self.model.kernel(X) + self.noise*tf.eye(X.shape[0], dtype=default_float()))
+        _len, _noise = self.model.trainable_parameters
+        self.noise = _noise
+        self.lengthscale = _len
         mean, amp = get_mean_and_amplitude(self.L, Y)
         self.kern_mean = mean
         self.kern_amplitude = amp
-        self.alpha = tf.linalg.triangular_solve(self.L, Y - mean, lower=True)
+        self.alphas = tf.linalg.triangular_solve(self.L, Y - mean, lower=True)
         self._optimized = True
 
     def get_context(self) -> dict:
@@ -222,8 +221,8 @@ class LVMModel(TrainableProbabilisticModel):
         Context for hyperparameter logging
         """
         context = dict(
-            alphas=[self.alpha.numpy()],
-            len_scales=[np.exp(self.log_lengthscale.numpy())],
+            alphas=[self.alphas.numpy()],
+            len_scales=[self.lengthscale.numpy()],
             amplitude=[self.kern_amplitude.numpy()],
             kernel_mu=[self.kern_mean.numpy()],
             noises=[self.noise.numpy()],
