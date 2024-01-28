@@ -48,10 +48,14 @@ def plotlatentspace_lvm(k: Kernel, lvm: object, ax, xmin: float=-2., xmax: float
 def plotlatentspace_lvm_refpoint(k_values: np.ndarray, ax, xmin: float=-2., xmax: float=2., stepsize=0.01, ref_point=(0,0), vmin=0., vmax=1., suffix="", cmap="viridis"):
     im_size = int(np.sqrt(k_values.shape)) # quadratic image
     ax.imshow(k_values.reshape((im_size, im_size)), vmin=vmin, vmax=vmax, cmap=cmap)
-    # ax.plot(ref_point, "x", color="darkred" markersize=25.)
-    # TODO: set correct x,y labels
-    # if isinstance(ref_point, tf.Tensor):
-    #     ref_point = ref_point.numpy()
+    x_range = np.arange(im_size)
+    tick_labels = [f'{tick:.2f}' if i % 10 == 0 else '' for i, tick in enumerate(np.linspace(xmin, xmax, im_size))]
+    ax.set_xticks(x_range, tick_labels)
+    ax.set_yticks(x_range, tick_labels[::-1])
+    ax.set_xlabel(r"$z_1$", fontsize=18)
+    ax.set_ylabel(r"$z_2$", fontsize=18)
+    ax.tick_params(axis="x", labelsize=11, rotation=45)
+    ax.tick_params(axis="y", labelsize=11)
     ref_point = np.array(tf.squeeze(ref_point))
     ax.set_title(f"z=[{str(np.round(ref_point[0], 2))}, {str(np.round(ref_point[1], 2))}]{suffix}", fontsize=23)
 
@@ -60,15 +64,13 @@ def plotlatentspace_lvm_refpoint_contour(k_values: Kernel, ax, xmin: float=-2., 
     im_size = int(np.sqrt(k_values.shape)) # quadratic image
     cs = ax.contour(k_values.reshape((im_size, im_size)), cmap=cmap)
     ax.clabel(cs, inline=True, fontsize=12)
-    x_range = np.arange(xmin, xmax, step=stepsize)
-    tick_labels = [f'{tick:.2f}' for tick in x_range]
-    # ax.set_xticks(x_range, tick_labels)
-    # ax.set_yticks(x_range, tick_labels)
-    ax.set_xticklabels(tick_labels)
-    ax.set_yticklabels(tick_labels) #TODO tick-labels are off fix this!
+    x_range = np.arange(im_size)
+    tick_labels = [f'{tick:.2f}' if i % 10 == 0 else '' for i, tick in enumerate(np.linspace(xmin, xmax, im_size))]
+    ax.set_xticks(x_range, tick_labels)
+    ax.set_yticks(x_range, tick_labels)
     ax.set_xlabel(r"$z_1$", fontsize=18)
     ax.set_ylabel(r"$z_2$", fontsize=18)
-    ax.tick_params(axis="x", labelsize=13)
-    ax.tick_params(axis="y", labelsize=13)
+    ax.tick_params(axis="x", labelsize=11, rotation=45)
+    ax.tick_params(axis="y", labelsize=11)
     ref_point = np.array(tf.squeeze(ref_point))
     ax.set_title(f"z=[{str(np.round(ref_point[0], 2))}, {str(np.round(ref_point[1], 2))}]{suffix}", fontsize=20)
