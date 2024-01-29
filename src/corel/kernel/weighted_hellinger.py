@@ -19,7 +19,7 @@ class WeightedHellinger(Hellinger):
         assert len(w.shape) == 2, "Weighting vector has too many dimensions!"
         self.w = w  # weighting density vector
         if lengthscale is None:
-            lengthscale = gpflow.Parameter(1.0, transform=positive(), dtype=default_float()) # TODO: log transform here?
+            lengthscale = gpflow.Parameter(1.0, dtype=default_float()) # TODO: log transform here?
         self.lengthscale = lengthscale  
             
     @staticmethod
@@ -52,19 +52,17 @@ class WeightedHellinger(Hellinger):
             if X != X2 returns tf.Tensor shape [1, len(X), 1, len(X2)]
         """
         output_shape = self._handle_k_output_shape(X, X2)
-        _X = handle_batch_shape(X) # correct batched handling
+        _X = self.restore(X)
         if X2 is None:
-            X2 = X
             _X2 = _X
         else:
-            _X2 = handle_batch_shape(X2)
-        _X = self.restore(X)
-        _X2 = self.restore(X2)
+            _X2 = self.restore(X2)
         assert _X.shape[-1] == self.AA and _X.shape[-2] == self.L, "Input vector X last two dimensions not consistent! (L, AA)"
         assert _X2.shape[-1] == self.AA and _X2.shape[-2] == self.L, "Input vector X2 last two dimensions not consistent! (L, AA)"
 
         M = self._H(_X, _X2)
-
+        if X2 is None:
+            M = tf.linalg.set_diag(M, tf.ones(M.shape[0], dtype=default_float()))
         M = tf.reshape(M, shape=output_shape) # NOTE: external shape check [batch..., N1, batch..., N2] if X!=X2
         return M
 
@@ -88,7 +86,7 @@ class WeightedHellinger(Hellinger):
         # NOTE: LHS is expectation with equal weight, could have weighting 
         weighted_E = self._compute_lhs(X, X2)
         M = weighted_E - M
-        M = tf.where(M < 0., tf.zeros_like(M), M)
-        M = tf.where(M == 0., tf.zeros_like(M), M) # fix gradients
+        #M = tf.where(M < 0., tf.zeros_like(M), M)
+        M = tf.where(M <= 0., tf.zeros_like(M), M) # fix gradients
         M = tf.exp(-tf.sqrt(M) / tf.square(self.lengthscale))
         return M
