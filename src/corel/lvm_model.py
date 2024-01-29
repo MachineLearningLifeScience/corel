@@ -51,7 +51,7 @@ class LVMModel(TrainableProbabilisticModel):
         self.lengthscale = None
         self.noise = None
         # regularizing prior for [0,1] range discounting larger noise values but not prohibiting them
-        self.noise_prior = tfp.distributions.InverseGamma(concentration=3., scale=0.75, name="noise_prior"), 
+        self.noise_prior = tfp.distributions.InverseGamma(concentration=3., scale=1., name="noise_prior")
         self._optimized = False
         self.model = None
         self._kernel = None
@@ -98,7 +98,7 @@ class LVMModel(TrainableProbabilisticModel):
         self._kernel = Product(kernels=kernels, name="product_whk")
         oh_sequences = to_default_float(tf.reshape(tf.one_hot(self.X, self.aa), shape=(self.X.shape[0], int(self.len*self.aa))))
         model = GPR((oh_sequences, self.y), kernel=self._kernel)
-        self.noise = Parameter(init_data_var, transform=positive(lower=np.exp(-350)), prior=self.noise_prior,
+        self.noise = Parameter(init_data_var, transform=positive(), prior=self.noise_prior,
                              name="noise")
         model.likelihood.variance = self.noise
         return model
@@ -142,7 +142,9 @@ class LVMModel(TrainableProbabilisticModel):
         # FIXME: predict_f fails due to batch shape mismatches within the posterior computation! Input [B, N, D] only [N, D] gets passed through, returns [N, N] shape-check fail!
         # pred_mean, pred_var = self.model.predict_f(ps[tf.newaxis,...]) # expects [B, N, D] inputs
         # manually compute posterior predictive
-        X, Y = self.model.data
+        X = self.X
+        Y = self.y
+        X = tf.reshape(tf.one_hot(X, self.aa, dtype=default_float()), shape=(X.shape[0], int(self.len*self.aa)))
         x = tf.reshape(x, shape=(x.shape[0], int(self.len*self.aa)))
         K_Xx = self.model.kernel(X[tf.newaxis,...], x[tf.newaxis,...]).reshape(X.shape[0], x.shape[0]) # drop batch dimensions at index [0, 2]
         L_x_solve = tf.transpose(tf.linalg.triangular_solve(self.L, K_Xx, lower=True))
@@ -184,7 +186,8 @@ class LVMModel(TrainableProbabilisticModel):
     def optimize(self, dataset: Dataset) -> None:
         if dataset.observations.shape[1] > 1:
             raise NotImplementedError("Only 1D case implemented!")
-        X, Y = self.model.data
+        X = tf.one_hot(self.X, self.aa, dtype=default_float()).reshape(self.X.shape[0], int(self.len*self.aa))
+        Y = self.y
         def _opt_closure():
             def opt_criterion():
                 ks = self._kernel(X) + self.noise * to_default_float(tf.eye(X.shape[0]))
@@ -195,13 +198,11 @@ class LVMModel(TrainableProbabilisticModel):
                     raise e
                 m, r = get_mean_and_amplitude(L, Y)
                 log_prob = multivariate_normal(Y, m * tf.ones([L.shape[0], 1], default_float()), tf.sqrt(r) * L)
-                nll = -tf.reduce_sum(log_prob)
+                nll = -tf.reduce_sum(log_prob) + self.model.log_prior_density() # account for prior distributions (noise)
                 if not tf.math.is_finite(nll):
                     return tf.convert_to_tensor(np.inf)
                 return nll
             return opt_criterion
-        # NOTE: below becomes a redundant check with replaced NaNs we ask for self.X==self.X
-        X, Y = self.model.data
         opt = Scipy()
         results = opt.minimize(_opt_closure(), 
                     self.model.trainable_variables,
