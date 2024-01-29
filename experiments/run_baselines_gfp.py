@@ -1,23 +1,18 @@
 """This script runs the baselines on the different objectives.
 
 Baselines to run:
-- Random hill climbing
-- NSGA-II (for the multi-objective problems)
+- Random mutations
+- GA
 
 Objective functions to optimize:
-- "foldx_rfp_lambo" (x)
-- "foldx_stability_and_sasa" (x)
+- "gfp_cbas_gp",
+- "gfp_cbas_elbo"
 
 To run this script, you'll need to:
 
 1. Set up poli.
     - Clone poli and install it:
       pip install git+https://github.com/MachineLearningLifeScience/poli.git@dev
-    - Make sure your poli__lambo environment works well,
-      this will imply cloning and installing lambo locally.
-    - For "foldx_stability_and_sasa", you should run this
-      script from an environment that has pdb-tools and biopython
-      installed.
 
 2. Set up poli-baselines.
     - Clone poli-baselines and install it:
@@ -27,19 +22,16 @@ from typing import Tuple, Literal
 from pathlib import Path
 import warnings
 import argparse
+from logging import info
 
 warnings.filterwarnings("ignore", module="Bio")
 
 import numpy as np
 
-from poli.objective_repository import RFPWrapperFactory
+from poli import objective_factory
 from poli.core.problem_setup_information import ProblemSetupInformation
 
-from poli.objective_repository import FoldXStabilityAndSASAProblemFactory
-
-from poli_baselines.solvers import (
-    DiscreteNSGAII,
-)
+from poli_baselines.solvers import FixedLengthGeneticAlgorithm, RandomMutation
 
 from corel.observers.poli_base_logger import PoliBaseMlFlowObserver
 from corel.observers.poli_lambo_logger import PoliLamboLogger
@@ -50,16 +42,14 @@ from corel.util.constants import (
     STARTING_N,
     MODEL,
 )
-from corel.util.util import transform_string_sequences_to_string_arrays
-
-from lambo import __file__ as lambo_project_root_file
-
-LAMBO_PROJECT_ROOT = Path(lambo_project_root_file).parent.parent.resolve()
-LAMBO_FOLDX_ASSETS = LAMBO_PROJECT_ROOT / "lambo" / "assets" / "foldx"
-PROJECT_ROOT_DIR = Path(__file__).parent.parent.resolve()
-TRACKING_URI = f"file:/{PROJECT_ROOT_DIR}/results/mlruns"
+from corel.util.util import transform_string_sequences_to_string_arrays, set_seeds
 
 AVAILABLE_SEQUENCES_N = [3, 16, 50, 512]
+
+PROBLEM_NAMES = ["gfp_cbas_gp", "gfp_cbas_elbo"]
+
+PROJECT_ROOT_DIR = Path(__file__).parent.parent.resolve()
+TRACKING_URI = f"file:/{PROJECT_ROOT_DIR}/results/mlruns"
 
 
 def prepare_data_for_experiment(
@@ -88,38 +78,19 @@ def instantiate_black_box(
     problem_name: Literal["foldx_stability_and_sasa", "foldx_rfp_lambo"],
     caller_info: dict,
 ):
-    assets_pdb_paths = list(LAMBO_FOLDX_ASSETS.glob("*/wt_input_Repair.pdb"))
-
-    # This is mostly taken from run_cold_warm_start_experiments_rfp_bo.py
-    if problem_name == "foldx_stability_and_sasa":
-        if (
-            n_allowed_observations == 1
-        ):  # cold-start problem: optimize w.r.t. 1 protein specifically
-            assets_pdb_paths = [
-                LAMBO_FOLDX_ASSETS / "1zgo_A" / "wt_input_Repair.pdb"
-            ]  # pick DsRed specifically.
-        if n_allowed_observations > len(assets_pdb_paths):
-            # if there is less data available than allowed, set this as starting number
-            caller_info[STARTING_N] = len(assets_pdb_paths)
-        observer = PoliBaseMlFlowObserver(TRACKING_URI)
-
-        f, x0, y0 = FoldXStabilityAndSASAProblemFactory().create(
-            wildtype_pdb_path=assets_pdb_paths,
-            batch_size=4,
-            seed=seed,
-            parallelize=True,
-            num_workers=4,
-        )
-
-    elif problem_name == "foldx_rfp_lambo":
-        observer = PoliLamboLogger(TRACKING_URI)
-        f, x0, y0 = RFPWrapperFactory().create(seed=seed)
-    else:
-        raise NotImplementedError
-
-    observer.initialize_observer(f.info, caller_info, x0, y0, seed)
-
-    f.set_observer(observer)
+    observer = None
+    observer = PoliBaseMlFlowObserver(TRACKING_URI)
+    info("Invoking objective factory create")
+    problem_info, f, x0, y0, run_info = objective_factory.create(
+        name=problem_name,
+        seed=seed,
+        caller_info=caller_info,
+        batch_size=batch,  # determines return shape of y0
+        observer=observer,
+        force_register=True,
+        parallelize=False,
+        problem_type=problem_name.split("_")[-1],
+    )
 
     return f, x0, y0
 
@@ -129,7 +100,7 @@ if __name__ == "__main__":
         description="Experiment specifications for running NSGA-II."
     )
     parser.add_argument(
-        "-s", "--seed", type=int, default=0, help="Random seed for experiments."
+        "-s", "--seed", type=int, default=1, help="Random seed for experiments."
     )
     parser.add_argument(
         "-m",
@@ -142,8 +113,8 @@ if __name__ == "__main__":
         "-p",
         "--problem",
         type=str,
-        choices=["foldx_rfp_lambo", "foldx_stability_and_sasa"],
-        default="foldx_rfp_lambo",
+        choices=PROBLEM_NAMES,
+        default=PROBLEM_NAMES[0],
         help="Problem description as string key.",
     )
     parser.add_argument("-b", "--batch", type=int, default=None)
@@ -162,17 +133,19 @@ if __name__ == "__main__":
     n_allowed_observations = args.number_observations
 
     # Adding some hardcoded values for NSGA-II
-    population_size = 10
-    n_iterations = 10
-    n_mutations = 5
+    population_size = 100
+    n_iterations = 500
+    prob_mutations = 100 / 100
+    n_mutations = 1
 
     # Creating the black box
+    set_seeds(seed)
     caller_info = {
         BATCH_SIZE: batch,
         SEED: seed,
         STARTING_N: n_allowed_observations,
         MODEL: "BASELINE",
-        ALGORITHM: f"NSGAII_popsize_{population_size}_n_mutations_{n_mutations}",
+        ALGORITHM: f"RANDOM_popsize_{population_size}_n_mutations_{n_mutations}",
     }
     f, x0, y0 = instantiate_black_box(problem_name, caller_info)
 
@@ -181,19 +154,26 @@ if __name__ == "__main__":
     y0 = y0[:n_allowed_observations]
 
     # Running the baseline
-    baseline = DiscreteNSGAII(
-        black_box=f if args.problem == "foldx_stability_and_sasa" else -f,
+    # baseline = FixedLengthGeneticAlgorithm(
+    #     black_box=f,
+    #     x0=x0,
+    #     y0=y0,
+    #     population_size=population_size,
+    #     prob_of_mutation=prob_mutations,
+    #     minimize=False,
+    # )
+    baseline = RandomMutation(
+        black_box=-f,
         x0=x0,
-        y0=y0,
-        population_size=population_size,
-        num_mutations=n_mutations,
+        y0=-y0,
+        n_mutations=n_mutations,
     )
 
     saving_path = (
         PROJECT_ROOT_DIR
         / "results"
         / "baselines"
-        / f"{problem_name}_n_{n_allowed_observations}_seed_{seed} / history.json"
+        / f"{problem_name}_RandomMutation_n_{n_allowed_observations}_seed_{seed} / history.json"
     )
     saving_path.parent.mkdir(parents=True, exist_ok=True)
     baseline.solve(
@@ -201,3 +181,5 @@ if __name__ == "__main__":
         verbose=True,
         post_step_callbacks=[lambda solver: solver.save_history(saving_path)],
     )
+
+    f.terminate()
