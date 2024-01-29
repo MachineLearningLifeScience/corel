@@ -24,11 +24,13 @@ from corel.optimization.latent_optimizer import \
 from corel.protein_model import ProteinModel
 from corel.trieste.custom_batch_acquisition_rule import \
     CustomBatchEfficientGlobalOptimization
-from corel.util.constants import ALGORITHM, BATCH_SIZE, MODEL, SEED, STARTING_N
+from corel.util.constants import (ALGORITHM, BATCH_SIZE, MODEL, SEED,
+                                  STARTING_N, STRATEGY)
 from corel.util.util import (get_amino_acid_integer_mapping_from_info,
                              set_seeds,
                              transform_string_sequences_to_integer_arrays)
 from corel.weightings.vae.cbas import CBASVAEWeightingFactory
+from corel.weightings.vae.cbas.util import get_experimental_X_y
 
 tf.config.run_functions_eagerly(True)
 
@@ -43,7 +45,7 @@ TRACKING_URI = Path(__file__).parent.parent / "results" / "mlruns"
 
 AVAILABLE_WEIGHTINGS = [CBASVAEWeightingFactory]
 # number of available observation from cold (0.) to warm (250+) start
-AVAILABLE_SEQUENCES_N = [3, 16, 50, 512]
+AVAILABLE_SEQUENCES_N = [1, 3, 16, 50, 512]
 
 PROBLEM_NAMES = ["gfp_cbas_gp", "gfp_cbas_elbo"] # TODO: ELBO evaluation currently not working!
 
@@ -91,6 +93,7 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
         STARTING_N: n_allowed_observations,
         MODEL: p_factory.__class__.__name__,
         ALGORITHM: "COREL",
+        STRATEGY: strategy,
     }
     observer = None
     observer = PoliBaseMlFlowObserver(TRACKING_URI)
@@ -103,7 +106,8 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
         observer=observer,
         force_register=True,
         parallelize=False,
-        problem_type=problem.split("_")[-1]
+        problem_type=problem.split("_")[-1],
+        n_starting_points=n_allowed_observations,
     )
     # subselect initial data and observations
     x0 = _x0[:batch] # corresponds to sequences for which f(x0) was computed
@@ -122,15 +126,18 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
     info(f"Set up model: {model_class.__name__}")
     if "L" in signature(model_class.__init__).parameters.keys():
         info("Querying available unlabelled data")
-        init_data = weighting.get_training_data()
-        if strategy == "sample":
+        if strategy == "unlabelled": # use all unlabelles sequences for a product kernel
+            init_data_oh, _, _  = get_experimental_X_y(random_state=seed, train_size=5000)
+            init_data_int = tf.argmax(init_data_oh, axis=-1)
+        elif strategy == "sample_all":
+            init_data = weighting.get_training_data() # obtain all available GFP data
             init_data = np.random.choice(init_data, size=500, replace=False) # subsample 1% of the sequences for product kernel
+            init_data_int = transform_string_sequences_to_integer_arrays(init_data, L, aa_int_mapping)
         elif strategy == "distance": 
             # TODO: compute distance for start data to all candidates, choose closest N/3 mid N/3 and most distant N/3 sequences
             raise NotImplementedError
         else:
-            raise ValueError("Selecting unlabelled sequences for product kernel failed!\nPick strategy {sample , distance}")
-        init_data_int = transform_string_sequences_to_integer_arrays(init_data, L, aa_int_mapping)
+            raise ValueError("Selecting unlabelled data for product kernel failed!\nPick a strategy!")
         model = model_class(weighting, AA=AA, L=L, unlabelled_data=init_data_int)
     else:
         model = model_class(weighting, AA)
@@ -180,11 +187,11 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--max_evaluations", type=int, default=100, help="Optimization budget, number of possible observations.")
     parser.add_argument("-p", "--problem", type=str, choices=PROBLEM_NAMES, default=PROBLEM_NAMES[0], help="Problem description as string key.")
     parser.add_argument("-b", "--batch", type=int, default=10)
-    parser.add_argument("-n", "--number_observations", type=int, choices=AVAILABLE_SEQUENCES_N, default=AVAILABLE_SEQUENCES_N[-1])
+    parser.add_argument("-n", "--number_observations", type=int, choices=AVAILABLE_SEQUENCES_N, default=3)
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-w", "--weighting", type=str, choices=AVAILABLE_WEIGHTINGS, default=AVAILABLE_WEIGHTINGS[0])
     parser.add_argument("--model", type=str, choices=MODEL_CLASS.keys(), default=LVMModel.__name__)
-    parser.add_argument("--strategy", type=str, choices=["sample", "distance"], default="sample")
+    parser.add_argument("--strategy", type=str, choices=["unlabelled", "sample_all", "distance"], default="unlabelled")
     args = parser.parse_args()
     info(f"Running GFP experiment: {args.problem}\n Model: {args.model} weighting: {args.weighting}\nbudget={args.max_evaluations} batch_size={args.batch} seed={args.seed}")
     result = cold_start_gfp_experiment(

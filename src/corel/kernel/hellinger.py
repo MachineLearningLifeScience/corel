@@ -1,16 +1,13 @@
 from typing import Optional
-import numpy as np
-
-import tensorflow as tf
 
 import gpflow
+import numpy as np
+import tensorflow as tf
 from gpflow.kernels import Kernel
-from gpflow.utilities import positive
-from gpflow.utilities import print_summary
-from gpflow.utilities import to_default_float
+from gpflow.utilities import positive, print_summary, to_default_float
 
-from corel.util.util import handle_batch_shape
 from corel.kernel.hellinger_reference import HellingerReference
+from corel.util.util import handle_batch_shape
 
 
 class Hellinger(HellingerReference):

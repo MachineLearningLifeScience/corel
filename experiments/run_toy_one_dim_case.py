@@ -40,15 +40,16 @@ observations_annot = list(zip(y_values, ["unseen"]*n_unseen + ["labelled"]*n_obs
 # Visualize initial discrete observations
 xx = np.arange(n_total)
 
-plt.figure(figsize=(4, 3), dpi=300)
+plt.figure(figsize=(3.5, 3), dpi=300)
 for i, (obs, annot) in  enumerate(observations_annot):
-    plt.plot(i, obs, "x", ms=4., c=color_dict.get(annot), label=annot)
+    plt.plot(i, obs, "X", ms=7., c=color_dict.get(annot), label=annot)
 handles, labels = plt.gca().get_legend_handles_labels()
 dict_label_handles = {label:handle for label, handle in zip(labels, handles)}
 plt.xlabel("X input", fontsize=18)
 plt.ylabel("observation", fontsize=18)
+plt.ylim((-1.5, 1.5))
 plt.title("Discrete", fontsize=21)
-plt.legend(dict_label_handles.values(), dict_label_handles.keys())
+plt.legend(dict_label_handles.values(), dict_label_handles.keys(), loc="lower right")
 plt.tight_layout()
 plt.savefig(f"{str(OUTPUT_PATH)}/discrete_setup.png")
 plt.savefig(f"{str(OUTPUT_PATH)}/discrete_setup.pdf")
@@ -65,15 +66,17 @@ xx = np.linspace(0+1e-7, 1-1e-7, 200).reshape(200, 1)
 prior_mean, prior_var = gp_model.predict_f(xx, full_cov=False) # THIS HERE FAILS! NaN values introduced, why?
 prior_samples = gp_model.predict_f_samples(xx, 100) # THIS HERE FAILS! NaN values introduced, why?
 
-plt.figure(figsize=(4, 3), dpi=300)
-plt.plot(p_x[n_unseen:n_obs+n_unseen], y_values[n_unseen:n_obs+n_unseen], "x", ms=4., c=color_dict.get("labelled"), label="labelled")
-plt.plot(xx, prior_mean, "C0", lw=2.)
+plt.figure(figsize=(3.5, 3), dpi=300)
+plt.plot(xx, prior_mean, "C0", lw=2., label=r"prior $\mu$")
 plt.plot(xx, prior_samples[:,:,0].numpy().T, "C0", lw=.25, alpha=.25)
-plt.fill_between(xx[:,0], prior_mean[:,0]-1.96*np.sqrt(prior_var[:,0]), prior_mean[:,0]+1.96*np.sqrt(prior_var[:,0]), color="C0", alpha=0.25)
+plt.fill_between(xx[:,0], prior_mean[:,0]-1.96*np.sqrt(prior_var[:,0]), prior_mean[:,0]+1.96*np.sqrt(prior_var[:,0]), color="C0", alpha=0.25, label=r"2$\sigma$")
+plt.fill_between(xx[:,0], prior_mean[:,0]-0.98*np.sqrt(prior_var[:,0]), prior_mean[:,0]+0.98*np.sqrt(prior_var[:,0]), color="C0", alpha=0.5, label=r"$\sigma$")
+plt.plot(p_x[n_unseen:n_obs+n_unseen], y_values[n_unseen:n_obs+n_unseen], "X", ms=7., c=color_dict.get("labelled"), label="labelled")
+plt.ylim((-1.5, 1.5))
 plt.xlabel(r"$p_{\phi}(X)$", fontsize=18)
 plt.ylabel("observations", fontsize=18)
 plt.title("Continuous", fontsize=21)
-plt.legend()
+plt.legend(loc="lower right")
 plt.tight_layout()
 plt.savefig(f"{str(OUTPUT_PATH)}/discrete_to_continuous.png")
 plt.savefig(f"{str(OUTPUT_PATH)}/discrete_to_continuous.pdf")
