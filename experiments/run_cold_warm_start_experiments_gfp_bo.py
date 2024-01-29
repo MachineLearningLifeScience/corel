@@ -45,7 +45,7 @@ TRACKING_URI = Path(__file__).parent.parent / "results" / "mlruns"
 
 AVAILABLE_WEIGHTINGS = [CBASVAEWeightingFactory]
 # number of available observation from cold (0.) to warm (250+) start
-AVAILABLE_SEQUENCES_N = [3, 16, 50, 512]
+AVAILABLE_SEQUENCES_N = [1, 3, 16, 50, 512]
 
 PROBLEM_NAMES = ["gfp_cbas_gp", "gfp_cbas_elbo"] # TODO: ELBO evaluation currently not working!
 
@@ -106,7 +106,8 @@ def cold_start_gfp_experiment(seed: int, budget: int, batch: int, n_allowed_obse
         observer=observer,
         force_register=True,
         parallelize=False,
-        problem_type=problem.split("_")[-1]
+        problem_type=problem.split("_")[-1],
+        n_starting_points=n_allowed_observations,
     )
     # subselect initial data and observations
     x0 = _x0[:batch] # corresponds to sequences for which f(x0) was computed
@@ -186,7 +187,7 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--max_evaluations", type=int, default=100, help="Optimization budget, number of possible observations.")
     parser.add_argument("-p", "--problem", type=str, choices=PROBLEM_NAMES, default=PROBLEM_NAMES[0], help="Problem description as string key.")
     parser.add_argument("-b", "--batch", type=int, default=10)
-    parser.add_argument("-n", "--number_observations", type=int, choices=AVAILABLE_SEQUENCES_N, default=AVAILABLE_SEQUENCES_N[-1])
+    parser.add_argument("-n", "--number_observations", type=int, choices=AVAILABLE_SEQUENCES_N, default=3)
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-w", "--weighting", type=str, choices=AVAILABLE_WEIGHTINGS, default=AVAILABLE_WEIGHTINGS[0])
     parser.add_argument("--model", type=str, choices=MODEL_CLASS.keys(), default=LVMModel.__name__)
