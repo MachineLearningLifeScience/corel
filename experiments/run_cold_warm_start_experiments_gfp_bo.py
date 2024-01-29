@@ -186,7 +186,7 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--seed", type=int, default=0, help="Random seed for experiments.")
     parser.add_argument("-m", "--max_evaluations", type=int, default=100, help="Optimization budget, number of possible observations.")
     parser.add_argument("-p", "--problem", type=str, choices=PROBLEM_NAMES, default=PROBLEM_NAMES[0], help="Problem description as string key.")
-    parser.add_argument("-b", "--batch", type=int, default=10)
+    parser.add_argument("-b", "--batch", type=int, default=3)
     parser.add_argument("-n", "--number_observations", type=int, choices=AVAILABLE_SEQUENCES_N, default=3)
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("-w", "--weighting", type=str, choices=AVAILABLE_WEIGHTINGS, default=AVAILABLE_WEIGHTINGS[0])
