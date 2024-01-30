@@ -79,6 +79,7 @@ class LVMModel(TrainableProbabilisticModel):
             encoding_mu = self.encoder(self.reference_data)[0]
             weighting_matrix = self.decoder(encoding_mu)
             n_indices, l_indices = tf.meshgrid(tf.range(int_ref_seqs.shape[0], dtype=tf.int64), tf.range(int_ref_seqs.shape[1], dtype=tf.int64), indexing='ij')
+            # TODO: this should use self.X, not the reference data...
             weight_matrix_at_positions = tf.gather_nd(weighting_matrix, tf.stack([n_indices, l_indices, int_ref_seqs], axis=-1))
             expectations = tf.reduce_prod(weight_matrix_at_positions, axis=-1)
         else:
@@ -90,7 +91,8 @@ class LVMModel(TrainableProbabilisticModel):
         # compute sequence likelihoods
         weighting_matrix, expectations = self._compute_weight_matrix_and_expectation_from_reference_sequences()
         init_len = max(np.sqrt(np.median(expectations)), np.exp(-350))
-        self.lengthscale = Parameter(init_len, transform=positive(lower=np.exp(-350)), name="lengthscale")
+        #self.lengthscale = Parameter(init_len, transform=positive(lower=np.exp(-350)), name="lengthscale")
+        self.lengthscale = Parameter(init_len, name="lengthscale")
         for _p in weighting_matrix:
             assert _p.shape[0] == self.len and _p.shape[1] == self.aa
             kernels.append(WeightedHellinger(w=_p, AA=self.aa, L=self.len, lengthscale=self.lengthscale))
@@ -112,6 +114,7 @@ class LVMModel(TrainableProbabilisticModel):
 
     def update(self, dataset: Dataset, batch_size=1) -> None:
         if self.nan_penalty:
+            #raise RuntimeError("WTF?! There should be no NaN values!")
             valid_observations = deepcopy(dataset.observations.numpy())
             nan_idx = np.isnan(dataset.observations.numpy())[...,0]
             info(f"Replacing {nan_idx.sum()} NaN values with penalty fixed value")
@@ -159,7 +162,7 @@ class LVMModel(TrainableProbabilisticModel):
         Return predictive posterior mean and variance.
         """
         assert self._optimized , "Model not optimized!"
-        info("Predict on query")
+        #info("Predict on query")
         if self.y.shape[1] > 1:
             raise NotImplementedError("Only 1D case implemented!\n Multiple output dimensions were provided.")
         if query_points.dtype.is_integer:
@@ -198,19 +201,19 @@ class LVMModel(TrainableProbabilisticModel):
                     raise e
                 m, r = get_mean_and_amplitude(L, Y)
                 log_prob = multivariate_normal(Y, m * tf.ones([L.shape[0], 1], default_float()), tf.sqrt(r) * L)
-                nll = -tf.reduce_sum(log_prob) + self.model.log_prior_density() # account for prior distributions (noise)
+                nll = -tf.reduce_sum(log_prob) - self.model.log_prior_density() # account for prior distributions (noise)
                 if not tf.math.is_finite(nll):
                     return tf.convert_to_tensor(np.inf)
                 return nll
             return opt_criterion
         opt = Scipy()
-        results = opt.minimize(_opt_closure(), 
+        results = opt.minimize(_opt_closure(),
                     self.model.trainable_variables,
                     )
         self.L = tf.linalg.cholesky(self.model.kernel(X) + self.noise*tf.eye(X.shape[0], dtype=default_float()))
-        _len, _noise = self.model.trainable_parameters
-        self.noise = _noise
-        self.lengthscale = _len
+        #_len, _noise = self.model.trainable_parameters
+        #self.noise = _noise
+        #self.lengthscale = _len
         mean, amp = get_mean_and_amplitude(self.L, Y)
         self.kern_mean = mean
         self.kern_amplitude = amp
