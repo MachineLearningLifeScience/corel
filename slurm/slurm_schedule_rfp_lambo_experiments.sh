@@ -6,6 +6,7 @@
 #SBATCH --mem-per-cpu=8G
 #SBATCH --array=9-26
 #SBATCH --time=3-12:00:00
+#SBATCH --gres=gpu:1
 
 HOME_DIR=/home/pcq275/
 LAMBO_DIR=${HOME_DIR}/lambo/
