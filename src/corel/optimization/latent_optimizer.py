@@ -54,6 +54,7 @@ class ContinuousLatentSpaceParameterizationOptimizerFactory:
                         )(searchspace, acquisition)
                     p = self.vae.decode(z)
                     bestk = self.get_best_of_k(self.samples_from_proposal, p, acquisition_function, bestk)
+                    break
                 except FailedOptimizationError as _:
                     warnings.warn(f"Failed optimization on iteration {i}\n retry...")
                 except Exception as e: # TODO: this statement is waaaay too broad. FIXME
