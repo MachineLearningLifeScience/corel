@@ -6,6 +6,7 @@
 #SBATCH --mem-per-cpu=8G
 #SBATCH --array=0-596%15
 #SBATCH --time=3-12:00:00
+#SBATCH --gres=gpu:1
 
 HOME_DIR=/home/pcq275/
 COREL_DIR=${HOME_DIR}/corel/
