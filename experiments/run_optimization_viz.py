@@ -2,7 +2,7 @@ import os
 import shutil
 from itertools import product
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import lambo
 import matplotlib.pyplot as plt
@@ -40,8 +40,9 @@ rfp_label_markers_dict = {
 
 algo_label_markers_dict = {
     "COREL": "X", 
-    "LAMBO": "s", 
-    "REFERENCE": "o", 
+    "LAMBO": "o", 
+    "REFERENCE": "s",
+    "RANDOM": "D", 
 }
 
 pareto_sequences_name_pdb_dict = {
@@ -54,11 +55,10 @@ pareto_sequences_name_pdb_dict = {
         }
 
 opt_colorscheme = ["#1E88E5", "#D81B60", "#FFC107", "#004D40", "#D81BAD", "#15CC80", "#FFB407", "#074D00"]
-reds_palettes = [
-sns.light_palette("darkred", len(rfp_label_markers_dict.keys()), reverse=True),
-sns.color_palette("Reds", len(rfp_label_markers_dict.keys())), 
-]
 
+COLOR_DICT = dict(zip(algo_label_markers_dict.keys(), opt_colorscheme[:len(algo_label_markers_dict)]))
+
+pareto_sequences_name_color_dict = dict(zip(pareto_sequences_name_pdb_dict.keys(), opt_colorscheme[:len(pareto_sequences_name_pdb_dict.keys())]))
 
 figure_labels_kvp = {ABS_HYPER_VOLUME: "abs. hypervolume",
                     REL_HYPER_VOLUME: "rel. hypervolume",
@@ -74,11 +74,22 @@ def obtain_pareto_front_idx_from_runs(df: pd.DataFrame, columns=["blackbox_0", "
     return np.where(pareto_vals)[0]
 
 
+def obtain_starting_sequences_from_df_entry(df_entry: pd.DataFrame, artifact_name: str="sequences_observations.npz") -> Tuple[np.ndarray]:
+    """
+    For each pareto front entry obtain the artifact, load sequence and obtain selected sequence at step of the index.
+    """
+    results_path = Path(TRACKING_URI.replace("file:", ""))
+    artifact_path = results_path / df_entry.run_uuid / "artifacts" / artifact_name
+    entry_results = np.load(str(artifact_path.resolve())) 
+    x0, y0 = entry_results["x0"], entry_results["y0"]
+    return x0, y0
+
+
 def obtain_sequences_from_df(df: pd.DataFrame, artifact_name: str="sequences_observations.npz") -> list:
     """
     For each pareto front entry obtain the artifact, load sequence and obtain selected sequence at step of the index.
     """
-    # TODO: why is step count too high? BUG ?
+    # TODO: why is step count too high? BUG?
     pareto_seq_list = []
     for _, entry in df.iterrows(): # query the dataframe entries with the index that points to the pareto value
         results_path = Path(TRACKING_URI.replace("file:", ""))
@@ -132,9 +143,22 @@ def pareto_front_figure(df: pd.DataFrame, columns=["blackbox_0", "blackbox_1"], 
         df_lst.append(df_col[columns])
     df_combined = pd.concat(df_lst, axis=1, join="inner")
     figure_path = Path(__file__).parent.parent.resolve() / "results" / "figures"
-    linestyles = [(1,1), (5,5)]
+    linestyles = [(1,1), (5,5), (2,2)]
 
     fig, ax = plt.subplots(figsize=(6, 6)) # subplot_kw={'aspect': 'equal'} TODO: make square
+    # MAKE REFERENCE FRONT with points
+    # load from experiment observations NOT from lambo reference files.
+    x0, y0 = obtain_starting_sequences_from_df_entry(df_combined.iloc[0]) # starting pareto sequences should be consistent per experiment
+    x0_labels = obtain_sequence_label_from_reference_file(x0)
+    # these values are expected to be different when number of starting sequences are larger than pareto front!
+    sns.lineplot(x=-y0[:,1], y=-y0[:,0],
+            sort=True, estimator=None, dashes=linestyles[-1], linewidth=2., label="Start", color="black")
+    
+    for _y, label in zip(y0, x0_labels):
+        sns.scatterplot(x=[-_y[1]], y=[-_y[0]], ax=ax, label=label, 
+            marker=algo_label_markers_dict.get("REFERENCE"), 
+            edgecolor="black", color=pareto_sequences_name_color_dict.get(label), s=72.)
+
     for i, algo in enumerate(df.algorithm.drop_duplicates()):
         if algo.startswith("Random"):
             continue
@@ -148,11 +172,14 @@ def pareto_front_figure(df: pd.DataFrame, columns=["blackbox_0", "blackbox_1"], 
         # palette = reds_palettes[i]
         pareto_entries_df["stability"] = - pareto_entries_df.blackbox_0.values # invert signs
         pareto_entries_df["SASA"] = - pareto_entries_df.blackbox_1.values
+
         sns.lineplot(pareto_entries_df, x="SASA", y="stability", 
                 sort=True, estimator=None, dashes=linestyles[i], linewidth=2., label=figure_labels_kvp.get(algo.split("_")[0]), color="black")
-        # for j, label in enumerate(pareto_sequences_name_pdb_dict.keys()):
-            # plot_df = pareto_entries_df[pareto_entries_df["labels"] == label]
-        sns.scatterplot(pareto_entries_df, x="SASA", y="stability", ax=ax, hue="algorithm", marker=algo_label_markers_dict.get(algo.split("_")[0]), edgecolor="black", palette=opt_colorscheme, s=72.)
+
+        for label in pareto_sequences_name_pdb_dict.keys():
+            plot_df = pareto_entries_df[pareto_entries_df["labels"] == label]
+            sns.scatterplot(plot_df, x="SASA", y="stability", ax=ax, label=label, marker=algo_label_markers_dict.get(algo.split("_")[0]), 
+            edgecolor="black", color=pareto_sequences_name_color_dict.get(label), s=72.)
     plt.grid(True, color="grey", linewidth=.15)
     plt.xlabel("SASA", fontsize=14)
     plt.xticks(rotation=45)
@@ -184,7 +211,7 @@ def enforce_equal_number_completed_seeds(df: pd.DataFrame) -> pd.DataFrame:
         seeds = df[df["algorithm"] == class_name]["seed"].unique()
         unique_seeds.append(seeds)
     seed_numbers = [len(s) for s in unique_seeds]
-    print(f"Minimal number of completed seeds: {min(seed_numbers)}")
+    print(f"Completed seeds: {seed_numbers}")
     common_seeds_idx = seed_numbers.index(min(seed_numbers))
     out_df = df[df["seed"].isin(unique_seeds[common_seeds_idx])]
     return out_df
@@ -216,7 +243,7 @@ def optimization_line_figure(df: pd.DataFrame, metric: str, n_steps, title: str=
     updated_legend = dict(zip([figure_labels_kvp.get(label.split("_")[0]) for label in labels], handles))
     plt.legend(updated_legend.values(), updated_legend.keys())
     plt.subplots_adjust(top=0.91, right=0.978, left=0.15, bottom=0.21)
-    figure_path = Path(__file__).parent.parent.resolve() / "results" / "figures"
+    figure_path = Path(__file__).parent.parent.resolve() / "results" / "figures" / "rfp"
     plt.savefig(f"{figure_path}/OPT_experiment_{metric.lower()}_{title.split()[0]}_batch{batch_size}.png")
     plt.savefig(f"{figure_path}/OPT_experiment_{metric.lower()}_{title.split()[0]}_batch{batch_size}.pdf")
     plt.show()
@@ -335,6 +362,7 @@ def load_viz_rfp_experiments(exp_name: str="rfp_foldx_stability_and_sasa",
             finished_only = True, # False ## DEBUG
             strict=True,
             n_steps: int=180,
+            pareto_fig=False,
             ):
     experiment_combinations = product(seeds, algorithms, starting_n, batch_size)
     mlf_client = mlflow.tracking.MlflowClient(tracking_uri=TRACKING_URI)
@@ -360,43 +388,69 @@ def load_viz_rfp_experiments(exp_name: str="rfp_foldx_stability_and_sasa",
     experiment_results_df = experiment_results_df.reset_index().rename(columns={"level_0": "algorithm", "level_1": "seed"})
     cold_experiments = experiment_results_df[(experiment_results_df.algorithm.str.endswith("_b6")) & (experiment_results_df.starting_N.astype(int) == 6)]
     warm_experiments = experiment_results_df[(experiment_results_df.algorithm.str.endswith("_b16")) & (experiment_results_df.starting_N.astype(int) == 50)]
-    # ref_experiments = experiment_results_df[(experiment_results_df.algorithm.str.endswith("_b16")) & (experiment_results_df.starting_N.astype(int) >= 500)]
+    ref_experiments = experiment_results_df[(experiment_results_df.algorithm.str.endswith("_b16")) & (experiment_results_df.starting_N.astype(int) >= 500)]
     ## OPTIMIZATION FIGURES
-    # for metric in METRIC_DICT.keys():
-    #     # optimization_figure(cold_experiments[["algorithm", "seed", "starting_N", metric]], metric=metric, title="cold HV optimization\nN=6")
-    #     optimization_line_figure(cold_experiments[["algorithm", "seed", "starting_N", metric]], metric=metric, title="cold HV optimization N=6", strict=strict, n_steps=n_steps)
-    #     # optimization_figure(warm_experiments[["algorithm", "seed", "starting_N", metric]], metric=metric, title="warm HV optimization\nN=50")
-    #     optimization_line_figure(warm_experiments[["algorithm", "seed", "starting_N", metric]], metric=metric, title="warm HV optimization N=50", strict=strict, n_steps=None)
-    #     # optimization_figure(ref_experiments[["algorithm", "seed", "starting_N", metric]], metric=metric, title="reference HV optimization\n N=512")
-    #     optimization_line_figure(ref_experiments[["algorithm", "seed", "starting_N", metric]], metric=metric, title="reference HV optimization N=512", strict=strict)
-    ## PARETO FIGURES
-    pareto_front_figure(cold_experiments[["algorithm", "seed", "starting_N", "run_uuid", "blackbox_0", "blackbox_1"]], title="cold optimization\nN=6")
-    pareto_front_figure(warm_experiments[["algorithm", "seed", "starting_N", "run_uuid", "blackbox_0", "blackbox_1"]], title="cold optimization\nN=50")
+    for metric in METRIC_DICT.keys():
+        if exp_name != "foldx_rfp_lambo":
+            optimization_line_figure(cold_experiments[["algorithm", "seed", "starting_N", metric]], metric=metric, title="cold HV optimization N=6", strict=strict, n_steps=n_steps)
+            optimization_line_figure(warm_experiments[["algorithm", "seed", "starting_N", metric]], metric=metric, title="warm HV optimization N=50", strict=strict, n_steps=None)
+        else:
+            optimization_line_figure(ref_experiments[["algorithm", "seed", "starting_N", metric]], metric=metric, title="ref. HV optimization N=512", strict=strict, n_steps=n_steps)
+    if pareto_fig:
+        ## PARETO FIGURES
+        pareto_front_figure(cold_experiments[["algorithm", "seed", "starting_N", "run_uuid", "blackbox_0", "blackbox_1"]], title="cold optimization\nN=6")
+        pareto_front_figure(warm_experiments[["algorithm", "seed", "starting_N", "run_uuid", "blackbox_0", "blackbox_1"]], title="cold optimization\nN=50")
 
 
-def make_regret_figure(df: pd.DataFrame, n_observations: int, target: str="blackbox_0") -> None:
+def make_performance_and_regret_figure(df: pd.DataFrame, target: str="blackbox_0") -> None:
     unpacked_df = unpack_observations(df, column=target)[["algorithm", "seed", "starting_N", "step", target]]
     unpacked_df_min = unpack_observations(df, column="min_"+target)[["algorithm", "seed", "starting_N", "step", "min_"+target]]
-    # if n_observations < unpacked_df.step.max():
-    #     unpacked_df = unpacked_df.groupby(["algorithm", "seed"]).filter()
-    # if n_observations < unpacked_df_min.step.max():
-    #     unpacked_df_min = unpacked_df_min.groupby(["algorithm", "seed"]).filter()
-    # # TODO: clip the observations: for each algo+seed filter step >= n_observations
+    batch_size = unpacked_df.iloc[0,0].split("_")[-1]
+    def filter_unique_counts(group):
+        return group["step"].nunique() == unpacked_df.step.max()+1
+    unpacked_df = unpacked_df.groupby(["algorithm", "seed"]).filter(filter_unique_counts)
+    unpacked_df_min = unpacked_df_min.groupby(["algorithm", "seed"]).filter(filter_unique_counts)
+    min_number_seeds = unpacked_df.groupby(["algorithm"])["seed"].nunique().min()
+    print(f"Minimal number of seeds: {min_number_seeds}")
+    subselected_algo_dfs = []
+    subselected_absmin_algo_dfs = []
+    for algo in unpacked_df.algorithm.unique(): # filter by minimal amount of overlapping seeds
+        algo_df = unpacked_df[unpacked_df.algorithm==algo]
+        algo_min_df = unpacked_df_min[unpacked_df_min.algorithm==algo]
+        min_seeds_for_algo = algo_df.seed.unique()[:min_number_seeds]
+        min_seeds_for_algo_min = algo_min_df.seed.unique()[:min_number_seeds]
+        subselected_df = algo_df[algo_df.seed.isin(min_seeds_for_algo)]
+        subselected_min_df = algo_min_df[algo_min_df.seed.isin(min_seeds_for_algo_min)]
+        subselected_algo_dfs.append(subselected_df)
+        subselected_absmin_algo_dfs.append(subselected_min_df)
+    filtered_results_df = pd.concat(subselected_algo_dfs)
+    filtered_min_results_df = pd.concat(subselected_absmin_algo_dfs)
+    filtered_results_df["opt_target"] = -filtered_results_df[target].values
+    filtered_min_results_df["opt_target"] = -filtered_min_results_df["min_"+target].values
     # step-wise observations figure
-    sns.lineplot(unpacked_df, x="step", y=target, hue="algorithm")
+    sns.lineplot(filtered_results_df, x="step", y="opt_target", hue="algorithm", 
+                hue_order=["COREL_b3", "RandomMutation_b3"], palette=opt_colorscheme)
     plt.ylabel(METRIC_DICT.get(target), fontsize=14)
     plt.xlabel("steps", fontsize=14)
+    figure_path = Path(__file__).parent.parent.resolve() / "results" / "figures" / "gfp"
+    plt.savefig(f"{figure_path}/observations_{target}_batch{batch_size}.png")
+    plt.savefig(f"{figure_path}/observations_{target}_batch{batch_size}.pdf")
     plt.show()
     # abs. min observations figure
-    # TODO: group by algo, seed, iterate and l
-    # sns.lineplot(unpacked_df_min, x="step", y="blackbox_min")
-    # Regret figure
-    # TODO: get oracle abs min/max
-    # TODO for each algo, seed get the min observation at the step
-    # TODO: compute cumulative regret for each step
-    stepwise_regret_df = None
-    sns.lineplot(stepwise_regret_df, x="step", y="cml_regret")
+    sns.lineplot(filtered_min_results_df, x="step", y="opt_target", hue="algorithm", 
+                hue_order=["COREL_b3", "RandomMutation_b3"], palette=opt_colorscheme)
+    plt.ylabel(METRIC_DICT.get(target), fontsize=14)
+    plt.xlabel("steps", fontsize=14)
+    plt.savefig(f"{figure_path}/BEST_observations_{target}_batch{batch_size}.png")
+    plt.savefig(f"{figure_path}/BEST_observations_{target}_batch{batch_size}.pdf")
     plt.show()
+
+    # # TODO: compute cumulative regret for each step
+    # # TODO: load global minimum from GFP data
+    # # TODO: subtract absmin plot from GFP oracle best value
+    # stepwise_regret_df = None
+    # sns.lineplot(stepwise_regret_df, x="step", y="cml_regret")
+    # plt.show()
 
 
 def load_viz_gfp_experiments(
@@ -406,7 +460,6 @@ def load_viz_gfp_experiments(
     starting_n: List[str] = ['3', '50'],
     batch_size: List[str] = ['3', '16'],
     tag_keys: List[str] = ["seed", "ALGORITHM", "n_D0"],
-    n_iterations: int = 50,
     finished_only: bool = False, ## DEBUG # NOTE: not all GFP experiments are terminated in Mlflow
     strict: bool = True, # False ## DEBUG # NOTE: enforce equal length of steps
 ):
@@ -418,22 +471,19 @@ def load_viz_gfp_experiments(
     if finished_only:
         runs = [r for r in runs if r.info.status == "FINISHED"]
     run_results = filter_run_results(experiment_combinations, runs)
-    # TODO: get the min_blackbox value
     metric_dict = get_algo_metric_history_from_run(mlf_client, run_results, algorithms=algorithms, seeds=seeds, batch_sizes=batch_size, starting_n=starting_n)
     experiment_results_df = pd.concat({k: pd.DataFrame.from_dict(v, 'index') for k,v in metric_dict.items()}, axis=0)
     experiment_results_df = experiment_results_df.reset_index().rename(columns={"level_0": "algorithm", "level_1": "seed"})
     experiments_df = experiment_results_df[(experiment_results_df.algorithm.str.endswith("_b3")) & (experiment_results_df.starting_N.astype(int) == 3)] # we care only about N=3 experiments
-    # TODO: regret figure here
-    make_regret_figure(experiments_df, n_observations=n_iterations)
+    make_performance_and_regret_figure(experiments_df)
 
 
 if __name__ == "__main__":
     ## LOAD AND VISUALIZE RFP EXPERIMENTS
     # RFP base experiments
-    # TODO: debug second pareto front figure making: breaks on L=310!
-    load_viz_rfp_experiments()
+    # load_viz_rfp_experiments(pareto_fig=True)
     # # RFP reference experiments
-    load_viz_rfp_experiments(exp_name="foldx_rfp_lambo", starting_n=["512"], finished_only=False)
+    # load_viz_rfp_experiments(exp_name="foldx_rfp_lambo", starting_n=["512"], finished_only=False)
     ## LOAD AND VISUALIZE GFP EXPERIMENTS
     load_viz_gfp_experiments()
 
