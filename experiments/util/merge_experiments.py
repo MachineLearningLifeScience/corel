@@ -3,8 +3,9 @@ Utility function to merge mlflow results from different sources.
 Merges by meta.yaml accounts for input results directories.
 """
 import os
-from pathlib import Path
 import shutil
+from pathlib import Path
+
 import yaml
 
 
@@ -13,7 +14,7 @@ def align_meta_files(mlflow_results_dir: str):
         raise ValueError(f"Specified directory: {mlflow_results_dir} does not exist!")
     for exp_dir in os.listdir(mlflow_results_dir):
         change_cnt = 0.
-        if exp_dir.startswith("."):
+        if exp_dir.startswith(".") or "models" in exp_dir:
             continue
         # parse experiment meta file
         exp_meta_file = mlflow_results_dir + os.sep + exp_dir + os.sep + "meta.yaml"
