@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def latent_space_fig(x, y, labels, observations=None, title: str="", range: Tuple=None, ref_point: Tuple=None, target_point: Tuple=None):
+def latent_space_fig(x, y, labels, observations=None, title: str="", range: Tuple=None, ref_point: Tuple=None, target_point: Tuple=None, oracle_n=10):
     fig, ax = plt.subplots()
     # get contour of latent space: # TODO: obtain grid by invoking black box function?
     # xi = np.linspace(min(x), max(x), 1000)
@@ -16,24 +16,23 @@ def latent_space_fig(x, y, labels, observations=None, title: str="", range: Tupl
     # ax.clabel(cs, inline=True, fontsize=16)
     # show maximal median and minimal values
     sort_vals_idx = np.argsort(labels)
-    max_labels = labels[sort_vals_idx][-50:]
-    x_max = x[sort_vals_idx][-50:]
-    y_max = y[sort_vals_idx][-50:]
-    min_labels = labels[sort_vals_idx][:50]
-    x_min = x[sort_vals_idx][:50]
-    y_min = y[sort_vals_idx][:50]
+    max_labels = labels[sort_vals_idx][-oracle_n:]
+    x_max = x[sort_vals_idx][-oracle_n:]
+    y_max = y[sort_vals_idx][-oracle_n:]
+    min_labels = labels[sort_vals_idx][:oracle_n]
+    x_min = x[sort_vals_idx][:oracle_n]
+    y_min = y[sort_vals_idx][:oracle_n]
     median_idx = len(labels) // 2
-    median_labels = labels[sort_vals_idx][median_idx-25: median_idx+25]
-    x_median = x[sort_vals_idx][median_idx-25: median_idx+25]
-    y_median = y[sort_vals_idx][median_idx-25: median_idx+25]
+    median_labels = labels[sort_vals_idx][median_idx-int(oracle_n/2): median_idx+int(oracle_n/2)]
+    x_median = x[sort_vals_idx][median_idx-int(oracle_n/2): median_idx+int(oracle_n/2)]
+    y_median = y[sort_vals_idx][median_idx-int(oracle_n/2): median_idx+int(oracle_n/2)]
     if observations is None:
         c_vals = labels
     else:
         c_vals = observations
     label_min = min(labels)
     label_max = max(labels)
-    # TODO: mark min and max of labels and observations
-    plt.scatter(x, y, c=c_vals, s=2., marker=".", alpha=0.3, vmin=label_min, vmax=label_max, cmap="PRGn")
+    plt.scatter(x, y, c=c_vals, s=1.5, marker=".", alpha=0.25, vmin=label_min, vmax=label_max, cmap="PRGn")
     plt.scatter(x_max, y_max, c=max_labels, s=25., marker="^", vmin=label_min, vmax=label_max, alpha=0.8, cmap="PRGn", label="top")
     plt.scatter(x_median, y_median, c=median_labels, s=25., marker="o", vmin=label_min, vmax=label_max, alpha=0.8, cmap="PRGn", label="median")
     plt.scatter(x_min, y_min, c=min_labels, s=25., alpha=0.8, marker="v", vmin=label_min, vmax=label_max, cmap="PRGn", label="min")
@@ -50,6 +49,8 @@ def latent_space_fig(x, y, labels, observations=None, title: str="", range: Tupl
         width = x_end - x_start
         rect = patches.Rectangle((x_start, y), width, width, linewidth=2.5, linestyle="dashed", edgecolor='k', facecolor='none')
         ax.add_patch(rect)
+    plt.ylim((-1, 0.7))
+    plt.xlim((-1, 0.7))
     plt.xlabel(r"$z_1$", fontsize=18)
     plt.ylabel(r"$z_2$", fontsize=18)
     plt.title(title, fontsize=20)
