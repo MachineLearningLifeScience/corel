@@ -21,9 +21,9 @@ from corel.observers import (ABS_HYPER_VOLUME, BLACKBOX, MIN_BLACKBOX,
                              REL_HYPER_VOLUME, UNNORMALIZED_HV)
 
 TRACKING_URI = "file:/Users/rcml/corel/results/slurm_mlruns/mlruns/"
-METRIC_DICT = {ABS_HYPER_VOLUME: "HV", 
-                REL_HYPER_VOLUME: "rel. HV", 
-                UNNORMALIZED_HV: "unnorm. HV",
+METRIC_DICT = {ABS_HYPER_VOLUME: "hypervolume", 
+                REL_HYPER_VOLUME: "rel. hypervolume", 
+                UNNORMALIZED_HV: "unnorm. hypervolume",
                 "blackbox_0": r"$f_0$", 
                 "blackbox_1": r"$f_1$",
                 "min_blackbox_0": r"$\min(f_0)$",
@@ -133,7 +133,6 @@ def unpack_observations(df: pd.DataFrame, column: str) -> pd.DataFrame:
 
 def pareto_front_figure(df: pd.DataFrame, columns=["blackbox_0", "blackbox_1"], title="") -> None:
     df_lst = []
-    # TODO: load and add reference points x0, y0 from any of the runs!
     for i, col in enumerate(columns):
         if i == 0:
             columns = list(df.columns[:3]) + [col, "step", "run_uuid"]
@@ -142,16 +141,16 @@ def pareto_front_figure(df: pd.DataFrame, columns=["blackbox_0", "blackbox_1"], 
         df_col = unpack_observations(df, column=col)
         df_lst.append(df_col[columns])
     df_combined = pd.concat(df_lst, axis=1, join="inner")
-    figure_path = Path(__file__).parent.parent.resolve() / "results" / "figures"
+    figure_path = Path(__file__).parent.parent.resolve() / "results" / "figures" / "rfp"
     linestyles = [(1,1), (5,5), (2,2)]
 
-    fig, ax = plt.subplots(figsize=(6, 6)) # subplot_kw={'aspect': 'equal'} TODO: make square
+    fig, ax = plt.subplots(figsize=(5, 5)) # subplot_kw={'aspect': 'equal'} TODO: make square
     # MAKE REFERENCE FRONT with points
     # load from experiment observations NOT from lambo reference files.
     x0, y0 = obtain_starting_sequences_from_df_entry(df_combined.iloc[0]) # starting pareto sequences should be consistent per experiment
     x0_labels = obtain_sequence_label_from_reference_file(x0)
     # these values are expected to be different when number of starting sequences are larger than pareto front!
-    sns.lineplot(x=-y0[:,1], y=-y0[:,0],
+    sns.lineplot(x=-y0[:,1], y=-y0[:,0], ax=ax,
             sort=True, estimator=None, dashes=linestyles[-1], linewidth=2., label="Start", color="black")
     
     for _y, label in zip(y0, x0_labels):
@@ -162,33 +161,29 @@ def pareto_front_figure(df: pd.DataFrame, columns=["blackbox_0", "blackbox_1"], 
     for i, algo in enumerate(df.algorithm.drop_duplicates()):
         if algo.startswith("Random"):
             continue
-        # TODO: add reference values here
         subset_df = df_combined[df_combined["algorithm"] == algo]
         pareto_indices = obtain_pareto_front_idx_from_runs(subset_df)
         pareto_entries_df = subset_df.iloc[pareto_indices]
         sequence_files = obtain_sequences_from_df(pareto_entries_df)
         find_sequence_labels = obtain_sequence_label_from_reference_file(sequence_files)
         pareto_entries_df["labels"] = find_sequence_labels
-        # palette = reds_palettes[i]
         pareto_entries_df["stability"] = - pareto_entries_df.blackbox_0.values # invert signs
         pareto_entries_df["SASA"] = - pareto_entries_df.blackbox_1.values
 
-        sns.lineplot(pareto_entries_df, x="SASA", y="stability", 
+        sns.lineplot(pareto_entries_df, x="SASA", y="stability", ax=ax,
                 sort=True, estimator=None, dashes=linestyles[i], linewidth=2., label=figure_labels_kvp.get(algo.split("_")[0]), color="black")
 
         for label in pareto_sequences_name_pdb_dict.keys():
             plot_df = pareto_entries_df[pareto_entries_df["labels"] == label]
-            sns.scatterplot(plot_df, x="SASA", y="stability", ax=ax, label=label, marker=algo_label_markers_dict.get(algo.split("_")[0]), 
-            edgecolor="black", color=pareto_sequences_name_color_dict.get(label), s=72.)
+            sns.scatterplot(plot_df, x="SASA", y="stability", ax=ax, marker=algo_label_markers_dict.get(algo.split("_")[0]), 
+                        edgecolor="black", color=pareto_sequences_name_color_dict.get(label), s=70.)
     plt.grid(True, color="grey", linewidth=.15)
-    plt.xlabel("SASA", fontsize=14)
-    plt.xticks(rotation=45)
-    plt.ylabel("Stability", fontsize=14)
+    plt.xlabel("SASA", fontsize=19)
+    plt.ylabel("Stability", fontsize=19)
+    ax.tick_params(axis="x", labelsize=14)
+    ax.tick_params(axis="y", labelsize=14)
     plt.tight_layout()
     batch_size = int(df_combined.iloc[0,0].split("_")[-1][1:])
-    handles, labels = ax.get_legend_handles_labels()
-    unique_legend = dict(zip(labels, handles))
-    ax.legend(unique_legend)
     plt.savefig(f"{figure_path}/PARETO_OPT_experiment_{title.split()[0]}_batch{batch_size}.png")
     plt.savefig(f"{figure_path}/PARETO_OPT_experiment_{title.split()[0]}_batch{batch_size}.pdf")
     plt.show()
@@ -238,11 +233,11 @@ def optimization_line_figure(df: pd.DataFrame, metric: str, n_steps, title: str=
     ax.tick_params(axis="y", labelsize=14)
     plt.xlabel("steps", fontsize=16)
     plt.ylabel(METRIC_DICT.get(metric), fontsize=16)
-    plt.title(title, fontsize=21)
+    # plt.title(title, fontsize=21)
     handles, labels = plt.gca().get_legend_handles_labels()
     updated_legend = dict(zip([figure_labels_kvp.get(label.split("_")[0]) for label in labels], handles))
     plt.legend(updated_legend.values(), updated_legend.keys())
-    plt.subplots_adjust(top=0.91, right=0.978, left=0.15, bottom=0.21)
+    plt.subplots_adjust(top=0.99, right=0.972, left=0.17, bottom=0.25)
     figure_path = Path(__file__).parent.parent.resolve() / "results" / "figures" / "rfp"
     plt.savefig(f"{figure_path}/OPT_experiment_{metric.lower()}_{title.split()[0]}_batch{batch_size}.png")
     plt.savefig(f"{figure_path}/OPT_experiment_{metric.lower()}_{title.split()[0]}_batch{batch_size}.pdf")
@@ -399,7 +394,7 @@ def load_viz_rfp_experiments(exp_name: str="rfp_foldx_stability_and_sasa",
     if pareto_fig:
         ## PARETO FIGURES
         pareto_front_figure(cold_experiments[["algorithm", "seed", "starting_N", "run_uuid", "blackbox_0", "blackbox_1"]], title="cold optimization\nN=6")
-        pareto_front_figure(warm_experiments[["algorithm", "seed", "starting_N", "run_uuid", "blackbox_0", "blackbox_1"]], title="cold optimization\nN=50")
+        # pareto_front_figure(warm_experiments[["algorithm", "seed", "starting_N", "run_uuid", "blackbox_0", "blackbox_1"]], title="cold optimization\nN=50")
 
 
 def make_performance_and_regret_figure(df: pd.DataFrame, target: str="blackbox_0") -> None:
@@ -427,20 +422,30 @@ def make_performance_and_regret_figure(df: pd.DataFrame, target: str="blackbox_0
     filtered_min_results_df = pd.concat(subselected_absmin_algo_dfs)
     filtered_results_df["opt_target"] = -filtered_results_df[target].values
     filtered_min_results_df["opt_target"] = -filtered_min_results_df["min_"+target].values
+    filtered_results_df["method"] = filtered_results_df.algorithm.str.split("_").str[0]
+    filtered_min_results_df["method"] = filtered_min_results_df.algorithm.str.split("_").str[0]
+    fig, ax = plt.subplots(figsize=(5,4))
     # step-wise observations figure
-    sns.lineplot(filtered_results_df, x="step", y="opt_target", hue="algorithm", 
-                hue_order=["COREL_b3", "RandomMutation_b3"], palette=opt_colorscheme)
-    plt.ylabel(METRIC_DICT.get(target), fontsize=14)
-    plt.xlabel("steps", fontsize=14)
+    sns.lineplot(filtered_results_df, x="step", y="opt_target", hue="method", ax=ax,
+                hue_order=["COREL", "RandomMutation"], palette=opt_colorscheme)
+    plt.ylabel(r"$\hat{f}_{GFP}$", fontsize=18)
+    plt.xlabel("steps", fontsize=18)
+    ax.tick_params(axis="x", labelsize=14, rotation=45)
+    ax.tick_params(axis="y", labelsize=14)
     figure_path = Path(__file__).parent.parent.resolve() / "results" / "figures" / "gfp"
+    plt.tight_layout()
     plt.savefig(f"{figure_path}/observations_{target}_batch{batch_size}.png")
     plt.savefig(f"{figure_path}/observations_{target}_batch{batch_size}.pdf")
     plt.show()
     # abs. min observations figure
-    sns.lineplot(filtered_min_results_df, x="step", y="opt_target", hue="algorithm", 
-                hue_order=["COREL_b3", "RandomMutation_b3"], palette=opt_colorscheme)
-    plt.ylabel(METRIC_DICT.get(target), fontsize=14)
-    plt.xlabel("steps", fontsize=14)
+    fig, ax = plt.subplots(figsize=(5,4))
+    sns.lineplot(filtered_min_results_df, x="step", y="opt_target", hue="method", ax=ax,
+                hue_order=["COREL", "RandomMutation"], palette=opt_colorscheme)
+    plt.ylabel(r"$\max$ $\hat{f}_{GFP}$", fontsize=18)
+    plt.xlabel("steps", fontsize=18)
+    ax.tick_params(axis="x", labelsize=14, rotation=45)
+    ax.tick_params(axis="y", labelsize=14)
+    plt.tight_layout()
     plt.savefig(f"{figure_path}/BEST_observations_{target}_batch{batch_size}.png")
     plt.savefig(f"{figure_path}/BEST_observations_{target}_batch{batch_size}.pdf")
     plt.show()
@@ -481,10 +486,10 @@ def load_viz_gfp_experiments(
 if __name__ == "__main__":
     ## LOAD AND VISUALIZE RFP EXPERIMENTS
     # RFP base experiments
-    # load_viz_rfp_experiments(pareto_fig=True)
-    # # RFP reference experiments
-    # load_viz_rfp_experiments(exp_name="foldx_rfp_lambo", starting_n=["512"], finished_only=False)
-    ## LOAD AND VISUALIZE GFP EXPERIMENTS
+    # load_viz_rfp_experiments(pareto_fig=False)
+    # ## LOAD AND VISUALIZE GFP EXPERIMENTS
     load_viz_gfp_experiments()
+    # # RFP reference experiments # SUPPLEMENTARY TODO
+    # load_viz_rfp_experiments(exp_name="foldx_rfp_lambo", starting_n=["512"], finished_only=False)
 
 
