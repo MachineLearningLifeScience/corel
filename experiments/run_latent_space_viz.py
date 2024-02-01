@@ -76,7 +76,7 @@ def get_wHK_values(weighting: object, ref_point: Tuple, L, AA, xmin, xmax, steps
     return k_values
 
 
-def run_gfp_latent_visualization(seed: int=0, val_range=(.2, .35), n_observation: int=10000, suffix: str="", reference_point=None):
+def run_gfp_latent_visualization(seed: int=0, val_range=(.2, .35), n_observation: int=54025, suffix: str="", reference_point=None):
     set_seeds(seed)
     caller_info = {
         BATCH_SIZE: None,
@@ -149,12 +149,12 @@ def run_gfp_latent_visualization(seed: int=0, val_range=(.2, .35), n_observation
     # plt.show()
 
     # VISUALIZE 2D Latent space against CONTOUR reference point
-    fig, ax = plt.subplots(1, 3, figsize=(9, 3), sharex=True, sharey=True, squeeze=False, subplot_kw={'aspect': 'equal'})
+    fig, ax = plt.subplots(1, 3, figsize=(8, 3), sharex=True, sharey=True, squeeze=False, subplot_kw={'aspect': 'equal'})
 
     img1 = plotlatentspace_lvm_refpoint_contour(matern_vals, ax=ax[0,0], suffix="\nMatern")
     _ = plotlatentspace_lvm_refpoint_contour(hk_vals, ax=ax[0,1], xmin=val_range[0], xmax=val_range[1], suffix="\nHellinger")
     _ = plotlatentspace_lvm_refpoint_contour(whk_vals, ax=ax[0,2], xmin=val_range[0], xmax=val_range[1], ref_point=reference_point, suffix="\nHellinger weighted")
-    plt.subplots_adjust(bottom=0.25, top=0.9, right=0.98, left=0.07)
+    plt.subplots_adjust(bottom=0.26, top=0.9, wspace=0., hspace=0., right=0.98, left=0.09)
     plt.savefig(f"/Users/rcml/corel/results/figures/kernel/CONTOUR_latent_z_Matern52_Hellinger_{problem}{suffix}.png")
     plt.savefig(f"/Users/rcml/corel/results/figures/kernel/CONTOUR_latent_z_Matern52_Hellinger_{problem}{suffix}.pdf")
     plt.show()
