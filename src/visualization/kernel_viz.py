@@ -68,9 +68,9 @@ def plotlatentspace_lvm_refpoint_contour(k_values: Kernel, ax, xmin: float=-2., 
     tick_labels = [f'{tick:.2f}' if i % 10 == 0 else '' for i, tick in enumerate(np.linspace(xmin, xmax, im_size))]
     ax.set_xticks(x_range, tick_labels)
     ax.set_yticks(x_range, tick_labels)
-    ax.set_xlabel(r"$z_1$", fontsize=18)
-    ax.set_ylabel(r"$z_2$", fontsize=18)
+    ax.set_xlabel(r"$z_1$", fontsize=16)
+    ax.set_ylabel(r"$z_2$", fontsize=16)
     ax.tick_params(axis="x", labelsize=11, rotation=45)
     ax.tick_params(axis="y", labelsize=11)
     ref_point = np.array(tf.squeeze(ref_point))
-    ax.set_title(f"z=[{str(np.round(ref_point[0], 2))}, {str(np.round(ref_point[1], 2))}]{suffix}", fontsize=20)
+    ax.set_title(f"z=[{str(np.round(ref_point[0], 2))}, {str(np.round(ref_point[1], 2))}]{suffix}", fontsize=18)
