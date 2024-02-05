@@ -17,13 +17,15 @@ from poli.core.util.proteins.mutations import \
     find_closest_wildtype_pdb_file_to_mutant
 from torch import Tensor
 
-from corel.observers import (ABS_HYPER_VOLUME, BLACKBOX, MIN_BLACKBOX,
+from corel.observers import (ABS_HYPER_VOLUME, BLACKBOX,
+                             LAMBO_REL_HYPER_VOLUME, MIN_BLACKBOX,
                              REL_HYPER_VOLUME, UNNORMALIZED_HV)
 
 TRACKING_URI = "file:/Users/rcml/corel/results/slurm_mlruns/mlruns/"
 METRIC_DICT = {ABS_HYPER_VOLUME: "hypervolume", 
                 REL_HYPER_VOLUME: "rel. hypervolume", 
                 UNNORMALIZED_HV: "unnorm. hypervolume",
+                LAMBO_REL_HYPER_VOLUME: "LamBO rel. hypervolume",
                 "blackbox_0": r"$f_0$", 
                 "blackbox_1": r"$f_1$",
                 "min_blackbox_0": r"$\min(f_0)$",
@@ -218,17 +220,34 @@ def optimization_line_figure(df: pd.DataFrame, metric: str, n_steps, title: str=
     full_size_df = unpack_observations(df, column=metric)
     if n_steps:
         full_size_df = full_size_df[full_size_df.step <= n_steps]
-    batch_size = int(full_size_df.iloc[0,0].split("_")[-1][1:])
+    # filter incomplete batches
+    def filter_unique_counts(group):
+        return group["step"].nunique() == full_size_df.step.max()+1
+    full_size_df = full_size_df.groupby(["algorithm", "seed"]).filter(filter_unique_counts)
+    print(f"Filtered seeds to {full_size_df.step.max()+1} completed steps")
+    # we filter by minimal count of available seeds between COREL or LAMBO - if random has less dont take less!
+    min_number_seeds = full_size_df[full_size_df.algorithm.str.split("_").str[0].isin(["COREL", "LAMBO"])].groupby(["algorithm"])["seed"].nunique().min()
+    print(f"Minimal number of seeds: {min_number_seeds}")
+    subselected_algo_dfs = []
+    for algo in full_size_df.algorithm.unique(): # filter by minimal amount of overlapping seeds
+        algo_df = full_size_df[full_size_df.algorithm==algo]
+        min_seeds_for_algo = algo_df.seed.unique()[:min_number_seeds]
+        subselected_df = algo_df[algo_df.seed.isin(min_seeds_for_algo)]
+        subselected_algo_dfs.append(subselected_df)
+    filtered_results_df = pd.concat(subselected_algo_dfs)
+    n_seeds = filtered_results_df.groupby(["algorithm"])["seed"].nunique()
+    print(f"n={n_seeds} seeds remaining for algorithms")
+    batch_size = int(filtered_results_df.iloc[0,0].split("_")[-1][1:])
     # HACK to overlay plots: point and lineplot treat x-axis differently, ensure categorical
-    full_size_df["step_str"] = full_size_df.step.astype(str)
+    filtered_results_df["step_str"] = filtered_results_df.step.astype(str)
     fig, ax = plt.subplots(figsize=(5, 3.5))
-    sns.lineplot(full_size_df, x="step_str", y=metric, hue="algorithm", ax=ax, palette=opt_colorscheme)
-    batched_stats = full_size_df[full_size_df["step"] % batch_size == 0]
-    sns.pointplot(batched_stats, x="step_str", y=metric, errorbar=("se", 1), capsize=.1, hue="algorithm", ax=ax, join="False", palette=opt_colorscheme)
+    sns.lineplot(filtered_results_df, x="step_str", y=metric, hue="algorithm", ax=ax, palette=opt_colorscheme)
+    batch_stats = filtered_results_df[filtered_results_df["step"] % batch_size == 0]
+    sns.pointplot(batch_stats, x="step_str", y=metric, errorbar=("se", 1), capsize=.1, hue="algorithm", ax=ax, join="False", palette=opt_colorscheme)
     for line in ax.lines:
         line.set_markersize(3.)
         line.set_linewidth(1.)
-    ax.set_xticks(np.arange(0, full_size_df["step"].max()+1, tick_every_batch*batch_size))
+    ax.set_xticks(np.arange(0, filtered_results_df["step"].max()+1, tick_every_batch*batch_size))
     ax.tick_params(axis="x", labelsize=14, rotation=45)
     ax.tick_params(axis="y", labelsize=14)
     plt.xlabel("steps", fontsize=16)
@@ -239,8 +258,8 @@ def optimization_line_figure(df: pd.DataFrame, metric: str, n_steps, title: str=
     plt.legend(updated_legend.values(), updated_legend.keys())
     plt.subplots_adjust(top=0.99, right=0.972, left=0.17, bottom=0.25)
     figure_path = Path(__file__).parent.parent.resolve() / "results" / "figures" / "rfp"
-    plt.savefig(f"{figure_path}/OPT_experiment_{metric.lower()}_{title.split()[0]}_batch{batch_size}.png")
-    plt.savefig(f"{figure_path}/OPT_experiment_{metric.lower()}_{title.split()[0]}_batch{batch_size}.pdf")
+    plt.savefig(f"{figure_path}/OPT_experiment_{metric.lower()}_{title.split()[0]}_batch{batch_size}_seeds{min_number_seeds}.png")
+    plt.savefig(f"{figure_path}/OPT_experiment_{metric.lower()}_{title.split()[0]}_batch{batch_size}_seeds{min_number_seeds}.pdf")
     plt.show()
     
 
@@ -358,6 +377,7 @@ def load_viz_rfp_experiments(exp_name: str="rfp_foldx_stability_and_sasa",
             strict=True,
             n_steps: int=180,
             pareto_fig=False,
+            metric_names: List[str]=METRIC_DICT.keys()
             ):
     experiment_combinations = product(seeds, algorithms, starting_n, batch_size)
     mlf_client = mlflow.tracking.MlflowClient(tracking_uri=TRACKING_URI)
@@ -367,7 +387,7 @@ def load_viz_rfp_experiments(exp_name: str="rfp_foldx_stability_and_sasa",
     if finished_only:
         runs = [r for r in runs if r.info.status == "FINISHED"]
     run_results = filter_run_results(experiment_combinations, runs)
-    metric_dict = get_algo_metric_history_from_run(mlf_client, run_results, algorithms=algorithms, seeds=seeds, batch_sizes=batch_size, starting_n=starting_n)
+    metric_dict = get_algo_metric_history_from_run(mlf_client, run_results, algorithms=algorithms, seeds=seeds, batch_sizes=batch_size, starting_n=starting_n, metric_names=metric_names)
     experiment_results_df = pd.concat({k: pd.DataFrame.from_dict(v, 'index') for k,v in metric_dict.items()}, axis=0)
     experiment_results_df = experiment_results_df.reset_index().rename(columns={"level_0": "algorithm", "level_1": "seed"})
     experiment_combinations = product(seeds, algorithms, starting_n, batch_size)
@@ -388,7 +408,7 @@ def load_viz_rfp_experiments(exp_name: str="rfp_foldx_stability_and_sasa",
     for metric in METRIC_DICT.keys():
         if exp_name != "foldx_rfp_lambo":
             optimization_line_figure(cold_experiments[["algorithm", "seed", "starting_N", metric]], metric=metric, title="cold HV optimization N=6", strict=strict, n_steps=n_steps)
-            optimization_line_figure(warm_experiments[["algorithm", "seed", "starting_N", metric]], metric=metric, title="warm HV optimization N=50", strict=strict, n_steps=None)
+            optimization_line_figure(warm_experiments[["algorithm", "seed", "starting_N", metric]], metric=metric, title="warm HV optimization N=50", strict=strict, n_steps=n_steps*2)
         else:
             optimization_line_figure(ref_experiments[["algorithm", "seed", "starting_N", metric]], metric=metric, title="ref. HV optimization N=512", strict=strict, n_steps=n_steps)
     if pareto_fig:
@@ -486,10 +506,11 @@ def load_viz_gfp_experiments(
 if __name__ == "__main__":
     ## LOAD AND VISUALIZE RFP EXPERIMENTS
     # RFP base experiments
-    # load_viz_rfp_experiments(pareto_fig=False)
+    load_viz_rfp_experiments(pareto_fig=True)
     # ## LOAD AND VISUALIZE GFP EXPERIMENTS
     load_viz_gfp_experiments()
-    # # RFP reference experiments # SUPPLEMENTARY TODO
-    # load_viz_rfp_experiments(exp_name="foldx_rfp_lambo", starting_n=["512"], finished_only=False)
+    # RFP reference experiments
+    load_viz_rfp_experiments(exp_name="foldx_rfp_lambo", starting_n=["512"], 
+        metric_names=list(METRIC_DICT.keys()) + [LAMBO_REL_HYPER_VOLUME], finished_only=False)
 
 
