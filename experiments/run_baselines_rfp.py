@@ -236,7 +236,7 @@ if __name__ == "__main__":
         n_allowed_observations=n_allowed_observations,
         batch_size=batch_size,
         seed=seed,
-        num_workers=4,
+        num_workers=10,
     )
 
     # Making sure we're only using the allowed number of observations
