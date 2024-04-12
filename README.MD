@@ -1,4 +1,9 @@
-# Setup
+# Corel
+## A Continuous Relaxation for Discrete Bayesian Optimization
+
+DISCLAIMER: This repository is currently under development and subject to significant changes until an official release.
+
+## Setup
 Create dedicated virtual environment:
 
 ```
@@ -7,13 +12,13 @@ conda env create -f environment.yml
 
 Activate `corel-env`
 
-## Setting up *Poli*
+#### Setting up *Poli*
 ```
 git clone poli && cd ./poli/
 pip install -e .
 ```
 
-## Run Experiments
+#### Run Experiments
 To replicate the RFP results run
 
 ```
@@ -22,8 +27,8 @@ python experiments/run_cold_warm_start_experiments_rfp_bo.py
 
 
 
-## Datasets
-### RFP
+### Datasets
+#### RFP
 The original RFP dataset was used as listed in LaMBO reference work.
 Known sequence structures were extracted and aligned with clustalo binaries (see Clustal Omega v. 1.2.4 64-bit Linux binary) -> MSA.
 The aligned MSA was used with HMMER to build a sequence alignment for VAE training using the MPI Bioinformatics Toolkit (see Zimmermann et al.).:
@@ -33,5 +38,5 @@ The aligned MSA was used with HMMER to build a sequence alignment for VAE traini
 
 See Dataset readme for details and citations.
 
-### GFP
+#### GFP
 Contained within the poli package, references provided there.
