@@ -1,13 +1,23 @@
 # Setup
+Create dedicated virtual environment:
+
 ```
-pip install trieste
-pip install -e .
+conda env create -f environment.yml
 ```
+
+Activate `corel-env`
 
 ## Setting up *Poli*
 ```
 git clone poli && cd ./poli/
 pip install -e .
+```
+
+## Run Experiments
+To replicate the RFP results run
+
+```
+python experiments/run_cold_warm_start_experiments_rfp_bo.py
 ```
 
 
@@ -22,3 +32,6 @@ The aligned MSA was used with HMMER to build a sequence alignment for VAE traini
  - columns were filtered gap 20%
 
 See Dataset readme for details and citations.
+
+### GFP
+Contained within the poli package, references provided there.
